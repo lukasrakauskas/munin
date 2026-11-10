@@ -574,6 +574,53 @@ mod tests {
         assert!(!rt.state.sidebar);
     }
     #[test]
+    fn editor_select_copy_and_paste_unicode() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("note.md"), "").unwrap();
+        let mut s = State::restore(Some(dir.path().to_path_buf()), None);
+        s.open_file("note.md").unwrap();
+        s.edit.focused = true;
+        let mut rt = Runtime::new(
+            s,
+            view,
+            (1000.0, 700.0),
+            Env {
+                system_dark: true,
+                scale: 1.0,
+            },
+        );
+        let clipboard = rune::clipboard::memory();
+        rt.use_clipboard(&clipboard);
+        rt.frame(0.0);
+        rt.ime(rune::Ime::Commit("Žąsis".into()));
+        rt.frame(0.0);
+        let mods = rune::Mods {
+            cmd: true,
+            ctrl: !cfg!(target_os = "macos"),
+            logo: cfg!(target_os = "macos"),
+            ..Default::default()
+        };
+        for c in ['a', 'c'] {
+            rt.key(rune::KeyEvent {
+                key: rune::Key::Command(c),
+                mods,
+            });
+            rt.frame(0.0);
+        }
+        assert_eq!(
+            clipboard.text().as_deref().map(String::as_str),
+            Some("Žąsis")
+        );
+        rt.key(rune::KeyEvent {
+            key: rune::Key::End,
+            mods: Default::default(),
+        });
+        rt.frame(0.0);
+        rt.update(|_, tx| tx.request_paste());
+        rt.frame(0.0);
+        assert_eq!(rt.state.edit.text, "ŽąsisŽąsis");
+    }
+    #[test]
     fn editor_undo_and_redo_preserve_unicode() {
         let dir = tempfile::tempdir().unwrap();
         std::fs::write(dir.path().join("note.md"), "").unwrap();
