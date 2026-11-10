@@ -1,3 +1,5 @@
+mod fs;
+
 use rune::{AppSpec, Cx, El, TextEdit, col, row, text};
 use rune_kit::{Kit, TextArea};
 
