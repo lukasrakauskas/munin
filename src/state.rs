@@ -136,7 +136,11 @@ impl State {
             .and_then(|s| serde_json::from_slice(&s).ok())
             .unwrap_or_default();
         let mut s = Self::restore(prefs.workspace, prefs.file);
-        s.theme = if prefs.theme <= 2 { prefs.theme } else { 0 };
+        s.theme = if usize::from(prefs.theme) < crate::theme::THEMES.len() {
+            prefs.theme
+        } else {
+            0
+        };
         s
     }
     pub fn write_preferences(&self, path: &Path) -> io::Result<()> {
@@ -616,6 +620,18 @@ mod tests {
         assert_eq!(State::read_preferences(&path).theme, 0);
         fs::write(&path, "broken json").unwrap();
         assert_eq!(State::read_preferences(&path).theme, 0);
+        fs::remove_dir_all(p).unwrap();
+    }
+    #[test]
+    fn every_theme_survives_restarting_the_app() {
+        let p = root();
+        let path = p.join("state.json");
+        let mut s = State::restore(None, None);
+        for theme in 0..12 {
+            s.theme = theme;
+            s.write_preferences(&path).unwrap();
+            assert_eq!(State::read_preferences(&path).theme, theme);
+        }
         fs::remove_dir_all(p).unwrap();
     }
     #[test]

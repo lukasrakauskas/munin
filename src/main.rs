@@ -15,6 +15,7 @@ mod state;
 mod sync;
 #[cfg(test)]
 mod sync_ui_tests;
+mod theme;
 mod ui;
 use ui::view;
 #[cfg(test)]

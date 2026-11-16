@@ -1,6 +1,6 @@
 //! Workspace chrome and the full-pane writing surface. Editing and persistence stay in State.
 use super::{choose_folder, key, remember, report, start_dialog, state::State, submit};
-use rune::{Color, Cx, El, Icon, ScrollSpec, TextStyle, col, el, icon, row, text, text_input};
+use rune::{Cx, El, Icon, ScrollSpec, TextStyle, col, el, icon, row, text, text_input};
 use rune_kit::{
     Button, ButtonVariant, ControlSize, FileNode, IconButton, IconButtonVariant, Kit, TextInput,
     Tree, TreeStyle, glyphs,
@@ -33,18 +33,6 @@ static TRASH: Icon = Icon {
     view: 24.0,
     body: r#"<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v5M14 11v5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>"#,
 };
-
-fn kit(dark: bool) -> Kit {
-    let mut k = Kit::neutral(dark);
-    let c = |s| rune::color::hex(s).expect("valid theme color");
-    k.c.page = if dark { c("#202024") } else { Color::WHITE };
-    k.c.layer_01 = if dark { c("#19191d") } else { c("#f5f5f8") };
-    k.c.text_accent = if dark { c("#bca5ff") } else { c("#7050bb") };
-    k.c.icon_accent = k.c.text_accent;
-    k.c.border_focus = k.c.text_accent;
-    k.c.bg_accent = k.c.text_accent;
-    k
-}
 
 fn action(glyph: &'static Icon, label: &str) -> IconButton {
     IconButton::new(glyph)
@@ -232,18 +220,14 @@ fn sidebar(s: &State, k: &Kit, controls_height: f32) -> El {
             .gap(8.0)
             .border_sides([1.0, 0.0, 0.0, 0.0], k.c.border_muted)
             .child(
-                Button::new(match s.theme {
-                    1 => "Appearance: Light",
-                    2 => "Appearance: Dark",
-                    _ => "Appearance: System",
-                })
-                .variant(ButtonVariant::GhostMuted)
-                .on_press(|s: &mut State| {
-                    s.theme = (s.theme + 1) % 3;
-                    remember(s);
-                })
-                .build(k)
-                .key("theme-toggle"),
+                Button::new(format!("Appearance: {}", crate::theme::get(s.theme).name))
+                    .variant(ButtonVariant::GhostMuted)
+                    .on_press(|s: &mut State| {
+                        s.theme = crate::theme::next(s.theme);
+                        remember(s);
+                    })
+                    .build(k)
+                    .key("theme-toggle"),
             )
             .child(
                 Button::new("Settings & device sync")
@@ -648,12 +632,7 @@ fn dialog(s: &State, mode: &str, k: &Kit) -> El {
 }
 
 pub(super) fn view(s: &State, cx: &mut Cx<State>) -> El {
-    let dark = match s.theme {
-        1 => false,
-        2 => true,
-        _ => cx.system_dark(),
-    };
-    let k = kit(dark);
+    let k = crate::theme::kit(s.theme, cx.system_dark());
     let chrome = cx.chrome_insets();
     let leading = cx.titlebar_inset().max(chrome.leading);
     if s.settings {

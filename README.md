@@ -53,6 +53,16 @@ Mermaid renders locally without JavaScript, a browser or network service. Unsupp
 
 Native clipboard and character/word/line selection shortcuts remain available. Ctrl+Home/End on Windows/Linux and Cmd+Up/Down on macOS navigate the document, not just the active block. Open the workspace folder with the sidebar folder button or the **Open workspace folder** palette action.
 
+## Themes
+
+Choose a palette in **Settings → General → Appearance**. Changes apply immediately to the workspace, editor, launcher and settings, and are remembered across restarts. The sidebar appearance button and the palette’s **Cycle appearance** action cycle through every theme.
+
+- **System**, **Light**, **Dark** preserve Munin’s original appearance. Only System follows your desktop’s light/dark preference.
+- **Tango**, **Solarized Light / Dark**, **Gruvbox Light / Dark**, **Dracula**, and **Nord** adapt familiar terminal palettes to the whole app. Some secondary/accent colors are adjusted for readable UI contrast.
+- **GitHub Light / Dark** use GitHub-like neutral surfaces with yellow/amber selection, highlights and focus accents rather than blue.
+
+[Theme picker](docs/images/theme-picker-light.png) · [Narrow picker](docs/images/theme-picker-narrow.png) · [GitHub Light](docs/images/theme-github-light.png) · [GitHub Dark](docs/images/theme-github-dark.png)
+
 ## Workspace and safety
 
 Right-click the sidebar or its entries for file/folder/workspace actions. Context actions target the clicked entry, not whichever note is active. Folder deletion is confirmation-gated and **empty-only**, including hidden non-Markdown files. The sidebar reserves native traffic-light space on macOS; hiding it moves header controls clear of the buttons, and fullscreen reclaims the space.

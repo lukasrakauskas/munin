@@ -125,26 +125,31 @@ fn ago(elapsed: Duration) -> String {
     }
 }
 fn general(s: &State, k: &Kit) -> El {
-    let mut choices = row().gap(8.0);
-    for (theme, label) in [(0, "System"), (1, "Light"), (2, "Dark")] {
-        choices = choices.child(
-            Button::new(if s.theme == theme {
-                format!("✓ {label}")
-            } else {
-                label.into()
-            })
-            .variant(if s.theme == theme {
-                ButtonVariant::Neutral
-            } else {
-                ButtonVariant::Ghost
-            })
-            .on_press(move |s: &mut State| {
-                s.theme = theme;
-                crate::remember(s);
-            })
-            .build(k)
-            .key(format!("settings-theme-{theme}")),
-        );
+    let columns = if s.viewport.0 >= 650.0 { 3 } else { 2 };
+    let mut choices = col().w_full().gap(8.0);
+    for (row_index, themes) in crate::theme::THEMES.chunks(columns).enumerate() {
+        let mut group = row().w_full().gap(8.0);
+        for (column, theme) in themes.iter().enumerate() {
+            let id = (row_index * columns + column) as u8;
+            group = group.child(
+                Button::new(theme.name)
+                    .variant(ButtonVariant::Ghost)
+                    .on_press(move |s: &mut State| {
+                        s.theme = id;
+                        crate::remember(s);
+                    })
+                    .build(k)
+                    .key(format!("settings-theme-{id}"))
+                    .fill(k.alpha(k.c.text_accent, if s.theme == id { 0.15 } else { 0.0 }))
+                    .border(if s.theme == id { 1.0 } else { 0.0 }, k.c.border_focus)
+                    .role("radio")
+                    .checked(s.theme == id)
+                    .focus_selected(s.theme == id)
+                    .grow(1.0)
+                    .min_w(0.0),
+            );
+        }
+        choices = choices.child(group);
     }
     let layout = if s.viewport.0 >= 650.0 {
         row().center_y()
@@ -162,10 +167,9 @@ fn general(s: &State, k: &Kit) -> El {
         ))
         .child(
             section(k).child(
-                layout
-                    .clone()
+                col()
                     .w_full()
-                    .gap(20.0)
+                    .gap(16.0)
                     .child(
                         col()
                             .grow(1.0)
@@ -173,11 +177,11 @@ fn general(s: &State, k: &Kit) -> El {
                             .gap(6.0)
                             .child(title("Appearance", k))
                             .child(paragraph(
-                                "Follow your system, or choose a light or dark workspace.",
+                                "Follow your system or choose a classic terminal palette. GitHub themes use yellow selection.",
                                 k,
                             )),
                     )
-                    .child(choices),
+                    .child(choices.role("radiogroup").label("Theme").focus_group()),
             ),
         )
         .child(
