@@ -92,6 +92,92 @@ fn long_invitation_selection_is_clipped_and_copy_and_revoke_remain_usable() {
 }
 
 #[test]
+fn desktop_settings_tabs_separate_content_and_use_two_sync_columns() {
+    let (_dir, mut rt) = runtime(1200.0);
+    click(&mut rt, "open-settings");
+    let elements = rt.elements();
+    let left = elements
+        .iter()
+        .find(|e| e.key.as_deref() == Some("sync-overview"))
+        .unwrap();
+    let right = elements
+        .iter()
+        .find(|e| e.key.as_deref() == Some("sync-connection"))
+        .unwrap();
+    assert!(
+        right.rect[0] >= left.rect[0] + left.rect[2],
+        "desktop sync must use horizontal columns"
+    );
+    let nearby = elements
+        .iter()
+        .find(|e| e.key.as_deref() == Some("nearby-settings"))
+        .unwrap();
+    assert!(
+        (nearby.rect[1] - left.rect[1]).abs() < 0.5,
+        "desktop columns should align at the top"
+    );
+    click(&mut rt, "t-general");
+    let choose = rt
+        .elements()
+        .into_iter()
+        .find(|e| e.key.as_deref() == Some("settings-open-workspace"))
+        .unwrap();
+    assert!(
+        choose.rect[0] > 600.0 && choose.rect[2] < 300.0,
+        "desktop actions belong beside the setting, not stretched across the page"
+    );
+    assert!(rt.find("general-settings").is_some());
+    assert!(rt.find("sync-settings").is_none());
+    assert!(rt.find("privacy-settings").is_none());
+    click(&mut rt, "settings-theme-1");
+    assert_eq!(rt.state.theme, 1);
+    click(&mut rt, "t-privacy");
+    assert!(rt.find("privacy-settings").is_some());
+    assert!(rt.find("settings-theme-1").is_none());
+    click(&mut rt, "t-sync");
+    assert!(rt.find("sync-toggle").is_some());
+    assert_eq!(rt.state.edit.text, "middle");
+    assert!(rt.state.changed_at.is_none());
+}
+
+#[test]
+fn nearby_confirmation_ui_requires_explicit_accept_and_can_stop_discovery() {
+    let (_dir, mut rt) = runtime(1200.0);
+    rt.state.sync.set_enabled(true).unwrap();
+    click(&mut rt, "open-settings");
+    assert!(rt.find("sync-nearby-toggle").is_some());
+    click(&mut rt, "sync-nearby-toggle");
+    assert!(rt.state.sync.nearby);
+    rt.update(|s, _| {
+        let id = iroh::SecretKey::generate().public();
+        s.sync.requests.insert(
+            "test-session".into(),
+            sync::Request {
+                id: "test-session".into(),
+                peer: sync::Peer {
+                    addr: id.into(),
+                    name: "Desktop".into(),
+                },
+                fingerprint: "1234 ABCD 5678".into(),
+                outgoing: false,
+                expires: Instant::now() + Duration::from_secs(90),
+            },
+        );
+    });
+    rt.frame(0.3);
+    assert!(rt.find("nearby-accept-test-session").is_some());
+    assert!(rt.find("nearby-decline-test-session").is_some());
+    assert!(
+        rt.state.sync.peers().is_empty(),
+        "a discovered request isn't authorization"
+    );
+    click(&mut rt, "sync-nearby-toggle");
+    assert!(!rt.state.sync.nearby);
+    assert!(rt.state.sync.requests.is_empty());
+    assert_eq!(rt.state.edit.text, "middle");
+}
+
+#[test]
 fn settings_opens_from_button_and_shortcut_without_editing_note() {
     let (_dir, mut rt) = runtime(1000.0);
     click(&mut rt, "open-settings");

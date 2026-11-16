@@ -20,7 +20,7 @@ macOS clearance follows runtime native-control insets. Tests simulate a 78px lea
 
 ## Checks and captures
 
-Current local verification: formatting, all **104 Rust tests**, strict Clippy, build and whitespace checks. Tests cover:
+Current local verification: formatting, **121 default Rust tests** (plus three host-dependent smoke tests run explicitly), strict Clippy, build and whitespace checks. Tests cover:
 - live in-place edits, surrounding byte preservation, CRLF and Unicode;
 - nested source emphasis, tables/diagrams, malformed Mermaid fallback;
 - undo across blocks and caret restoration, IME, document selection/clipboard, block and document navigation, forward deletion and new paragraphs;
@@ -46,9 +46,9 @@ Additional tests cover:
 - pause/re-enable, identity and trust persistence, workspace isolation, reselecting the current workspace, pausing despite filesystem errors, and fail-closed device removal when config writes fail;
 - settings button/shortcut/Escape, palette navigation, narrow layout and no hidden note edits.
 
-Actual Mesa-rendered captures: [dark enabled settings](images/sync-settings-dark.png), [pairing/devices](images/sync-pairing-dark.png), and [430px light settings](images/sync-settings-narrow-light.png). Captures use a disposable workspace and public device key, never a live invitation or private key.
+Actual Mesa-rendered captures: [dark enabled settings](images/sync-settings-dark.png), [pairing/devices](images/sync-pairing-dark.png), and [430px light settings](images/sync-settings-narrow-light.png). Captures use a disposable workspace and public device key. Any pictured invitation was invalidated when its disposable process closed; no private device key is pictured.
 
-Verification is local on Linux, including two real iroh endpoints using direct loopback transport with external relays disabled in tests. Public-internet/NAT/relay interoperability and physical macOS/Windows devices were **not** exercised; no claim of native cross-platform or WAN testing is made. Author self-review only, per the no-subagents request. Explicit trust/topology, removal semantics and recovery limits are documented in README.
+Verification is local on Linux. Isolated transport tests use two real iroh endpoints with direct loopback and external relays disabled; the full-worker smoke below additionally exercises the production endpoint preset and local multicast discovery. Public-internet/NAT/relay interoperability and physical macOS/Windows devices were **not** exercised; no claim of native cross-platform or WAN testing is made. Author self-review only, per the no-subagents request. Explicit trust/topology, removal semantics and recovery limits are documented in README.
 
 ## Invitation selection and code-copy controls
 
@@ -59,6 +59,24 @@ Markdown code frames have separate language/Copy headers. Clipboard tests cover 
 Actual captures: [clipped invitation selection with visible actions](images/sync-invitation-selection-light.png) and [Markdown copy headers](images/markdown-copy-dark.png). The pictured invitation was generated in a disposable process and invalidated when that process closed; it is not an active grant. No private device key is pictured.
 
 The existing Windows CI failure in `idle_sync_does_not_rewrite_durable_history` was traced to `File::open` requesting only read access before `set_times`. Its fixture now opens with write access, required by Windows; the assertion remains intact. Local Linux verification does not substitute for the Windows CI rerun.
+
+## Desktop tabs, nearby pairing and rune-fx
+
+`src/settings.rs` owns a keyboard-accessible native TabStrip (General / Sync & devices / Privacy); `src/settings/sync.rs` owns the desktop two-column sync workbench and narrow fallback. Tests switch tabs and appearance without editing the note, require aligned desktop columns and compact setting actions, exercise nearby confirmation controls and retain the invitation selection/copy regressions. Updated captures: [desktop Sync](images/sync-settings-dark.png), [General](images/settings-general-light.png), [Privacy](images/settings-privacy-dark.png), and [narrow fallback](images/sync-settings-narrow-light.png).
+
+`src/sync/discovery.rs` advertises only the friendly name, public endpoint identity and direct addresses on a Munin-specific mDNS service. It is opt-in, non-persistent, stops at 600 seconds, and never broadcasts a capability or grants trust. Discovered routes can update existing trust entries without replacing their verified names. Candidate sets are bounded; expired/stopped candidates and stale confirmation events are removed. Multicast availability is not assumed in default CI tests.
+
+`src/sync/pairing.rs` uses a separate metadata-only QUIC ALPN. Fresh endpoint-bound nonce commitments are exchanged **before** nonce revelation, preventing adaptive fingerprint selection. The human comparison fingerprint binds both authenticated identities and both session nonces; approval handles use the full 256-bit session ID. Both devices must accept before either trust grant, with bounded requests, rejection/stop cancellation and 90-second timeouts. Approving a new nearby peer also revokes an unused invitation if the UI hides it; a hidden capability never remains redeemable. Tests prove no premature trust or note exchange, symmetric verification, binding/tamper/replay rejection, decline, and cancellation even after one approval.
+
+`src/settings/effects.rs` draws a finite rune-fx neon glow and sparkle burst around the first-success banner. New grants/failed transfers do not celebrate; the first successful exchange does, once per newly authorized peer. Globally unique success IDs keep celebrations distinct across workspace switches. The compositor uses Rune's animation clock, stops requesting frames after 1.8 seconds, handles device/format changes, and omits motion effects under reduced motion while retaining the message. [Actual GPU effect capture](images/pairing-success-rune-fx.png) uses a controlled success-state fixture; it is not evidence of a physical remote-device session.
+
+In addition to the **121 default tests**, all **three optional smoke tests passed explicitly** on this Linux host:
+
+```sh
+cargo test -- --ignored --test-threads=1
+```
+
+They exercise (1) actual GPU drawing versus an unmodified UI baseline, reduced-motion and post-effect idle frames, (2) two real endpoints discovering each other over multicast, and (3) the full application worker flow: discovery, connect, matching fingerprints, bilateral acceptance and bidirectional Markdown sync **without generating or exchanging an invitation code**. Physical multi-device LANs, restrictive router/firewall configurations and native macOS/Windows operation still require verification. Author self-review only; no subagents used.
 
 ## Reproduce
 

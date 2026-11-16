@@ -59,18 +59,28 @@ Changes save after a pause and before switching files. Disk conflicts preserve y
 
 ## Your notes, on your devices
 
-Open **Settings & device sync** in the sidebar, use the header gear with the sidebar hidden, or press **Ctrl/Cmd+,**. Settings includes appearance, workspace sync status, device naming, pairing and trusted-device management.
+Open **Settings & device sync** in the sidebar, use the header gear with the sidebar hidden, or press **Ctrl/Cmd+,**. Desktop settings has **General**, **Sync & devices**, and **Privacy** tabs. Sync uses a compact workspace/identity column beside a wider connection panel; appearance and privacy explanations live in their own tabs.
 
 ![Device sync settings](docs/images/sync-settings-dark.png)
 
+### On the same network: no invitation to send
+
 1. Open a workspace on each device and choose **Enable device sync**.
-2. Choose **Create invitation** on the first device and **Copy invitation**.
-3. Privately send the code to the other device, paste it into **Have an invitation?**, and connect. Long codes are selectable inside their own scroll area; **Copy invitation** and **Revoke invitation** remain outside the selection. Invitations expire after ten minutes and approve one device.
-4. Keep both apps open for the initial exchange. Afterwards, edit offline as usual; paired devices retry automatically when both are available.
+2. In **Sync & devices**, choose **Find nearby devices** on both.
+3. Choose **Connect** beside the other device. Compare the short verification fingerprint shown on both screens, then **Accept on both devices**. Requests expire after 90 seconds; discovering a name alone never grants access.
+4. Keep both Sync tabs open until the first exchange completes. A short rune-fx sparkle/glow celebrates the new pairing once—not every autosync. Reduced motion keeps the success message without travelling effects.
+
+Nearby advertises your device name, public endpoint key and direct IP addresses over local multicast for at most ten minutes. It stays active if you leave settings, until you stop discovery, pause sync, switch workspace, close Munin or the window expires. It publishes no workspace names, notes, invitation capabilities or private keys. Already-trusted devices can refresh their local connection routes without approving again. Guest Wi-Fi isolation, blocked multicast, firewalls or denied local-network permission can prevent discovery.
+
+### Other networks or blocked discovery: invitation fallback
+
+Choose **Create invitation**, then **Copy invitation**. Privately send it to the other device, paste it into the invitation field and choose **Accept invitation**. Long codes stay selectable inside their own scroll area; Copy/Revoke remain outside the selection. Each invitation expires after ten minutes and approves one device. Completing a new nearby pairing revokes any unused invitation that is cleared from the UI.
+
+After pairing, edit offline as usual; paired devices retry automatically when both are available.
 
 No account or hosted document service is required. **Automerge** merges concurrent text edits; **iroh** provides authenticated, end-to-end encrypted QUIC connections with direct links and relay fallback. Settings reports the last successful exchange and individual device errors—not merely whether sync was enabled. Existing notes on both devices are kept; colliding filenames get deterministic `(conflict …)` copies. Concurrent edits survive a concurrent deletion. Renames propagate when removed/added content identifies a unique match; otherwise they become delete/create operations.
 
-[Pairing and trusted devices](docs/images/sync-pairing-dark.png) · [Narrow light settings](docs/images/sync-settings-narrow-light.png)
+[General tab](docs/images/settings-general-light.png) · [Privacy tab](docs/images/settings-privacy-dark.png) · [Invitation fallback](docs/images/sync-pairing-dark.png) · [Pairing FX preview](docs/images/pairing-success-rune-fx.png) · [Narrow fallback](docs/images/sync-settings-narrow-light.png)
 
 ### Privacy, trust and recovery
 

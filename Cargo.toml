@@ -18,3 +18,8 @@ base64 = "0.22"
 uuid = { version = "1", features = ["v4"] }
 fs2 = "0.4"
 constant_time_eq = "0.4"
+blake3 = "1"
+futures-util = "0.3"
+iroh-mdns-address-lookup = "0.6"
+rune-fx = { git = "https://github.com/anomalyco/rune", rev = "ba5e7c8069a24c36f95ca90a3058083cd468fcd1" }
+wgpu = { version = "30", default-features = false, features = ["std"] }

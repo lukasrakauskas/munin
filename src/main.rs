@@ -196,6 +196,7 @@ fn main() {
         ..AppSpec::new("Munin", (1000.0, 700.0), init, view)
     };
     App::new(spec)
+        .compositor(settings::effects::PairingFx::default())
         .on_close(|s, _| {
             if let Err(e) = s.save() {
                 match recovery_path().map(|p| s.write_recovery(&p)) {

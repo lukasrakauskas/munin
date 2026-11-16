@@ -187,10 +187,124 @@ fn failed_device_removal_stops_networking_instead_of_hiding_live_authorization()
     let file = dir.path().join(".munin-sync/device.json");
     fs::remove_file(&file).unwrap();
     fs::create_dir(&file).unwrap();
+    sync.nearby = true;
     assert!(sync.forget(&peer.to_string()).is_err());
+    assert!(
+        !sync.nearby,
+        "stopped networking must also clear nearby UI state"
+    );
     assert!(
         sync.worker.is_none(),
         "failed persistence must not leave a hidden authorized network session"
+    );
+}
+
+#[test]
+fn new_pairing_celebrates_only_after_first_successful_exchange() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut sync = super::Sync::load(Some(dir.path()));
+    sync.set_enabled(true).unwrap();
+    let id = iroh::SecretKey::generate().public();
+    let peer = super::network::Peer {
+        addr: id.into(),
+        name: "Laptop".into(),
+    };
+    sync.handle_event(super::network::Event::Peer(peer.clone()))
+        .unwrap();
+    assert!(
+        sync.success.is_none(),
+        "grant alone is not a completed sync"
+    );
+    sync.handle_event(super::network::Event::Error(Some(id), "offline".into()))
+        .unwrap();
+    assert!(sync.success.is_none());
+    sync.handle_event(super::network::Event::Synced(id))
+        .unwrap();
+    let seq = sync.success.as_ref().unwrap().sequence;
+    assert_eq!(sync.success.as_ref().unwrap().name, "Laptop");
+    sync.handle_event(super::network::Event::Peer(peer))
+        .unwrap();
+    sync.handle_event(super::network::Event::Synced(id))
+        .unwrap();
+    assert_eq!(
+        sync.success.as_ref().unwrap().sequence,
+        seq,
+        "ordinary autosync must not replay success FX"
+    );
+}
+
+#[test]
+fn nearby_candidates_are_bounded_expire_and_disappear_on_pause() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut sync = super::Sync::load(Some(dir.path()));
+    sync.set_enabled(true).unwrap();
+    sync.nearby = true;
+    for n in 0..70 {
+        sync.handle_event(super::network::Event::Nearby(super::network::Peer {
+            addr: iroh::SecretKey::generate().public().into(),
+            name: format!("Device {n}"),
+        }))
+        .unwrap();
+    }
+    assert_eq!(sync.nearby_devices.len(), 64);
+    let peer = sync.nearby_devices.values().next().unwrap().addr.id;
+    sync.handle_event(super::network::Event::NearbyExpired(peer))
+        .unwrap();
+    assert_eq!(sync.nearby_devices.len(), 63);
+    sync.set_enabled(false).unwrap();
+    assert!(!sync.nearby && sync.nearby_devices.is_empty());
+}
+
+#[test]
+fn stopped_nearby_does_not_resurrect_a_queued_confirmation() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut sync = super::Sync::load(Some(dir.path()));
+    sync.set_enabled(true).unwrap();
+    sync.nearby = false;
+    sync.handle_event(super::network::Event::PairRequest(super::Request {
+        id: "stale".into(),
+        peer: super::Peer {
+            addr: iroh::SecretKey::generate().public().into(),
+            name: "Other".into(),
+        },
+        fingerprint: "ABCD EFGH IJKL".into(),
+        outgoing: false,
+        expires: std::time::Instant::now() + std::time::Duration::from_secs(90),
+    }))
+    .unwrap();
+    assert!(
+        sync.requests.is_empty(),
+        "stopping discovery must not reopen old prompts"
+    );
+}
+
+#[test]
+fn pairing_success_ids_are_unique_across_workspaces() {
+    let a = tempfile::tempdir().unwrap();
+    let b = tempfile::tempdir().unwrap();
+    let mut left = super::Sync::load(Some(a.path()));
+    let mut right = super::Sync::load(Some(b.path()));
+    left.set_enabled(true).unwrap();
+    right.set_enabled(true).unwrap();
+    let id = iroh::SecretKey::generate().public();
+    let peer = super::Peer {
+        addr: id.into(),
+        name: "Laptop".into(),
+    };
+    left.handle_event(super::network::Event::Peer(peer.clone()))
+        .unwrap();
+    right
+        .handle_event(super::network::Event::Peer(peer))
+        .unwrap();
+    left.handle_event(super::network::Event::Synced(id))
+        .unwrap();
+    right
+        .handle_event(super::network::Event::Synced(id))
+        .unwrap();
+    assert_ne!(
+        left.success.unwrap().sequence,
+        right.success.unwrap().sequence,
+        "the compositor survives workspace switches, so a new pairing needs a distinct one-shot key"
     );
 }
 

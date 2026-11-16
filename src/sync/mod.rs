@@ -1,9 +1,15 @@
 //! Workspace-local sync lifecycle and the UI-thread file/buffer bridge.
 #[cfg(test)]
 mod authorization_tests;
+mod discovery;
+#[cfg(test)]
+mod discovery_tests;
 mod network;
 #[cfg(test)]
 mod network_tests;
+mod pairing;
+#[cfg(test)]
+mod pairing_tests;
 #[cfg(test)]
 mod safety_tests;
 pub mod store;
@@ -14,7 +20,15 @@ use crate::{
     live,
     state::{State, path_id},
 };
-use network::{Command, Event, Peer, Ticket, Worker};
+pub(crate) use network::Peer;
+use network::{Command, Event, Ticket, Worker};
+pub(crate) use pairing::Request;
+
+static SUCCESS_SEQUENCE: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+pub struct Success {
+    pub name: String,
+    pub sequence: u64,
+}
 use rune::TextEdit;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -53,6 +67,12 @@ pub struct Sync {
     pub file_error: Option<String>,
     pub invitation: Option<(String, Instant)>,
     pub pairing: bool,
+    pub requests: BTreeMap<String, Request>,
+    pub nearby: bool,
+    pub nearby_devices: BTreeMap<String, Peer>,
+    pub accepted_requests: std::collections::BTreeSet<String>,
+    pub success: Option<Success>,
+    newly_paired: std::collections::BTreeSet<String>,
     pub peer_errors: BTreeMap<String, String>,
     pub last_seen: BTreeMap<String, Instant>,
     pub last_success: Option<Instant>,
@@ -136,6 +156,10 @@ impl Sync {
         self.ready = false;
         self.invitation = None;
         self.pairing = false;
+        self.nearby = false;
+        self.nearby_devices.clear();
+        self.requests.clear();
+        self.accepted_requests.clear();
         if let (Some(config), Some(store)) = (&self.config, &mut self.store) {
             self.sent = store.snapshot();
             self.worker = Some(Worker::start(
@@ -188,6 +212,10 @@ impl Sync {
             self.invitation = None;
             self.pairing = false;
             self.pending.clear();
+            self.nearby = false;
+            self.nearby_devices.clear();
+            self.requests.clear();
+            self.accepted_requests.clear();
             if let Some(config) = &mut self.config {
                 config.enabled = false;
                 self.save_config()?;
@@ -220,6 +248,11 @@ impl Sync {
         self.ready = false;
         self.invitation = None;
         self.pairing = false;
+        self.nearby = false;
+        self.nearby_devices.clear();
+        self.requests.clear();
+        self.accepted_requests.clear();
+        self.success = None;
         if let Some(config) = &mut self.config {
             config.peers.retain(|p| p.addr.id.to_string() != id);
         }
@@ -228,6 +261,50 @@ impl Sync {
         self.peer_errors.remove(id);
         if self.enabled() {
             self.start_worker();
+        }
+        Ok(())
+    }
+    pub fn set_nearby(&mut self, enabled: bool) -> io::Result<()> {
+        if !self.enabled() {
+            return Err(err("Enable workspace sync first"));
+        }
+        self.send(Command::Nearby(enabled))?;
+        self.nearby = enabled;
+        if !enabled {
+            self.nearby_devices.clear();
+            self.requests.clear();
+            self.accepted_requests.clear();
+            self.pairing = false;
+        }
+        self.error = None;
+        Ok(())
+    }
+    pub fn connect_nearby(&mut self, id: &str) -> io::Result<()> {
+        if !self.nearby {
+            return Err(err("Enable nearby discovery first"));
+        }
+        let peer = self
+            .nearby_devices
+            .get(id)
+            .ok_or_else(|| err("Nearby device expired; wait for discovery or use an invitation"))?;
+        self.send(Command::NearbyConnect(peer.addr.clone()))?;
+        self.pairing = true;
+        self.error = None;
+        Ok(())
+    }
+    pub fn decide(&mut self, id: &str, accept: bool) -> io::Result<()> {
+        let request = self
+            .requests
+            .get(id)
+            .ok_or_else(|| err("Pairing request no longer exists"))?;
+        if request.expires <= Instant::now() || self.accepted_requests.contains(id) {
+            return Err(err("Pairing request expired or already answered"));
+        }
+        self.send(Command::Decide(id.to_owned(), accept))?;
+        if accept {
+            self.accepted_requests.insert(id.to_owned());
+        } else {
+            self.requests.remove(id);
         }
         Ok(())
     }
@@ -259,69 +336,123 @@ impl Sync {
             .as_ref()
             .map(|w| w.events.try_iter().take(64).collect())
             .unwrap_or_default();
-        let changed = !events.is_empty();
+        let mut changed = !events.is_empty();
         for event in events {
-            match event {
-                Event::Ready => self.ready = true,
-                Event::Invitation(code) => {
-                    self.invitation = Some((code, Instant::now()));
-                    self.error = None;
-                }
-                Event::Peer(peer) => {
-                    let config = self.config.as_mut().unwrap();
-                    let existing = config.peers.iter_mut().find(|p| p.addr.id == peer.addr.id);
-                    let changed = match existing {
-                        Some(old) => {
-                            let changed = old.addr != peer.addr || old.name != peer.name;
-                            *old = peer;
-                            changed
-                        }
-                        None => {
-                            if config.peers.len() >= 64 {
-                                return Err(err("At most 64 paired devices are supported"));
-                            }
-                            config.peers.push(peer);
-                            self.invitation = None;
-                            true
-                        }
-                    };
-                    if changed {
-                        self.save_config()?;
-                    }
-                }
-                Event::Document(bytes) => self.pending.push(bytes),
-                Event::Synced(id) => {
-                    self.last_seen.insert(id.to_string(), Instant::now());
-                    self.peer_errors.remove(&id.to_string());
-                    self.last_success = Some(Instant::now());
-                    self.pairing = false;
-                    self.pair_input = TextEdit::new("");
-                    self.error = None;
-                }
-                Event::Error(id, error) => {
-                    self.pairing = false;
-                    if let Some(id) = id.filter(|id| self.peers().iter().any(|p| p.addr.id == *id))
-                    {
-                        self.peer_errors.insert(id.to_string(), error);
-                    } else {
-                        self.error = Some(error);
-                    }
-                }
-                Event::Fatal(error) => {
-                    self.ready = false;
-                    self.error = Some(error);
-                    self.worker = None;
-                }
-            }
+            self.handle_event(event)?;
         }
+        let count = self.requests.len();
+        self.requests.retain(|_, r| r.expires > Instant::now());
+        self.accepted_requests
+            .retain(|id| self.requests.contains_key(id));
+        changed |= count != self.requests.len();
         if self
             .invitation
             .as_ref()
             .is_some_and(|(_, t)| t.elapsed() >= Duration::from_secs(600))
         {
             self.invitation = None;
+            changed = true;
         }
         Ok(changed)
+    }
+    fn handle_event(&mut self, event: Event) -> io::Result<()> {
+        match event {
+            Event::Nearby(peer) => {
+                if self.nearby
+                    && (self.nearby_devices.len() < 64
+                        || self.nearby_devices.contains_key(&peer.addr.id.to_string()))
+                {
+                    self.nearby_devices.insert(peer.addr.id.to_string(), peer);
+                }
+            }
+            Event::NearbyExpired(id) => {
+                self.nearby_devices.remove(&id.to_string());
+            }
+            Event::NearbyState(enabled) => {
+                self.nearby = enabled;
+                if !enabled {
+                    self.nearby_devices.clear();
+                    self.requests.clear();
+                    self.accepted_requests.clear();
+                    self.pairing = false;
+                }
+            }
+            Event::PairRequest(request) => {
+                if self.nearby && request.expires > Instant::now() && self.requests.len() < 8 {
+                    self.pairing = false;
+                    self.requests.insert(request.id.clone(), request);
+                }
+            }
+            Event::PairFinished { id, error } => {
+                self.requests.remove(&id);
+                self.accepted_requests.remove(&id);
+                self.pairing = error.is_none();
+                if error.is_some() {
+                    self.error = error;
+                }
+            }
+            Event::Ready => self.ready = true,
+            Event::Invitation(code) => {
+                self.invitation = Some((code, Instant::now()));
+                self.error = None;
+            }
+            Event::Peer(peer) => {
+                let config = self.config.as_mut().unwrap();
+                let existing = config.peers.iter_mut().find(|p| p.addr.id == peer.addr.id);
+                let changed = match existing {
+                    Some(old) => {
+                        let changed = old.addr != peer.addr || old.name != peer.name;
+                        *old = peer;
+                        changed
+                    }
+                    None => {
+                        if config.peers.len() >= 64 {
+                            return Err(err("At most 64 paired devices are supported"));
+                        }
+                        self.newly_paired.insert(peer.addr.id.to_string());
+                        config.peers.push(peer);
+                        self.invitation = None;
+                        true
+                    }
+                };
+                if changed {
+                    self.save_config()?;
+                }
+            }
+            Event::Document(bytes) => self.pending.push(bytes),
+            Event::Synced(id) => {
+                if self.newly_paired.remove(&id.to_string())
+                    && let Some(peer) = self.peers().iter().find(|p| p.addr.id == id)
+                {
+                    let name = peer.name.clone();
+                    self.success = Some(Success {
+                        name,
+                        sequence: SUCCESS_SEQUENCE
+                            .fetch_add(1, std::sync::atomic::Ordering::Relaxed),
+                    });
+                }
+                self.last_seen.insert(id.to_string(), Instant::now());
+                self.peer_errors.remove(&id.to_string());
+                self.last_success = Some(Instant::now());
+                self.pairing = false;
+                self.pair_input = TextEdit::new("");
+                self.error = None;
+            }
+            Event::Error(id, error) => {
+                self.pairing = false;
+                if let Some(id) = id.filter(|id| self.peers().iter().any(|p| p.addr.id == *id)) {
+                    self.peer_errors.insert(id.to_string(), error);
+                } else {
+                    self.error = Some(error);
+                }
+            }
+            Event::Fatal(error) => {
+                self.ready = false;
+                self.error = Some(error);
+                self.worker = None;
+            }
+        }
+        Ok(())
     }
 }
 
@@ -463,15 +594,23 @@ pub fn poll(s: &mut State, tx: &mut rune::Tx) -> bool {
         s.sync.ready,
         s.edit.text.clone(),
     );
+    let previous_success = s.sync.success.as_ref().map(|v| v.sequence);
     let _ = flush(s);
-    before
-        != (
-            s.sync.revision,
-            s.sync.file_error.clone(),
-            s.sync.last_success,
-            s.sync.invitation.is_some(),
-            s.sync.error.clone(),
-            s.sync.ready,
-            s.edit.text.clone(),
-        )
+    if s.settings
+        && s.settings_tab == crate::settings::Tab::Sync
+        && previous_success != s.sync.success.as_ref().map(|v| v.sequence)
+    {
+        tx.scroll_to_y("settings-scroll", 0.0);
+    }
+    (s.settings && !s.sync.requests.is_empty())
+        || before
+            != (
+                s.sync.revision,
+                s.sync.file_error.clone(),
+                s.sync.last_success,
+                s.sync.invitation.is_some(),
+                s.sync.error.clone(),
+                s.sync.ready,
+                s.edit.text.clone(),
+            )
 }

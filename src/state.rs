@@ -41,6 +41,7 @@ pub struct State {
     pub changed_at: Option<std::time::Instant>,
     pub recovered: bool,
     pub settings: bool,
+    pub settings_tab: crate::settings::Tab,
     pub sync: crate::sync::Sync,
 }
 
@@ -173,6 +174,7 @@ impl State {
             changed_at: None,
             recovered: false,
             settings: false,
+            settings_tab: crate::settings::Tab::default(),
             sync,
         };
         let _ = s.refresh();

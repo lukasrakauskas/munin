@@ -103,14 +103,22 @@ pub struct SessionState {
     pub auth: Authorization,
     pub name: String,
 }
-type Shared = Arc<Mutex<SessionState>>;
+pub(super) type Shared = Arc<Mutex<SessionState>>;
 pub enum Command {
     Snapshot(Vec<u8>),
     Invite,
     RevokeInvite,
     Pair(Ticket),
+    Nearby(bool),
+    NearbyConnect(EndpointAddr),
+    Decide(String, bool),
 }
 pub enum Event {
+    Nearby(Peer),
+    NearbyExpired(EndpointId),
+    NearbyState(bool),
+    PairRequest(super::pairing::Request),
+    PairFinished { id: String, error: Option<String> },
     Ready,
     Invitation(String),
     Peer(Peer),
@@ -188,7 +196,7 @@ fn check_hello(h: &Hello, conn: &Connection) -> io::Result<()> {
     }
     Ok(())
 }
-async fn write_frame(send: &mut SendStream, bytes: &[u8]) -> io::Result<()> {
+pub(super) async fn write_frame(send: &mut SendStream, bytes: &[u8]) -> io::Result<()> {
     if bytes.len() > MAX_BYTES {
         return Err(err("Sync message exceeds 32 MiB"));
     }
@@ -197,7 +205,7 @@ async fn write_frame(send: &mut SendStream, bytes: &[u8]) -> io::Result<()> {
         .map_err(err)?;
     send.write_all(bytes).await.map_err(err)
 }
-async fn read_frame(recv: &mut RecvStream, limit: usize) -> io::Result<Vec<u8>> {
+pub(super) async fn read_frame(recv: &mut RecvStream, limit: usize) -> io::Result<Vec<u8>> {
     let mut len = [0; 4];
     recv.read_exact(&mut len).await.map_err(err)?;
     let len = u32::from_be_bytes(len) as usize;
@@ -293,16 +301,27 @@ fn finish(
     Ok(())
 }
 fn approved(shared: &Shared, remote: &Hello, events: &mpsc::Sender<Event>) -> io::Result<()> {
-    let peer = Peer {
-        addr: remote.addr.clone(),
-        name: remote.name.clone(),
-    };
+    grant(
+        shared,
+        Peer {
+            addr: remote.addr.clone(),
+            name: remote.name.clone(),
+        },
+        events,
+    )
+}
+pub(super) fn grant(shared: &Shared, peer: Peer, events: &mpsc::Sender<Event>) -> io::Result<()> {
     let mut state = shared.lock().unwrap();
     if state.auth.peers.len() >= 64 && !state.auth.peers.contains_key(&peer.addr.id) {
         return Err(err("At most 64 paired devices are supported"));
     }
+    if !state.auth.peers.contains_key(&peer.addr.id) {
+        // The UI clears a pending invitation when a new nearby peer is approved.
+        // Revoke its capability too; never leave a hidden code redeemable.
+        state.auth.invite = None;
+    }
     state.auth.peers.insert(peer.addr.id, peer.clone());
-    // Once a capability was consumed, expose the grant even if data exchange fails.
+    // Expose every grant even if the first data exchange fails.
     // Otherwise a partially paired device would have access but no Remove button.
     let _ = events.send(Event::Peer(peer));
     Ok(())
@@ -421,7 +440,7 @@ async fn run(
 ) -> io::Result<()> {
     let endpoint = Endpoint::builder(presets::N0)
         .secret_key(SecretKey::from_bytes(&secret))
-        .alpns(vec![ALPN.to_vec()])
+        .alpns(vec![ALPN.to_vec(), super::pairing::ALPN.to_vec()])
         .bind()
         .await
         .map_err(err)?;
@@ -435,6 +454,8 @@ async fn run(
     }));
     let _ = events.send(Event::Ready);
     let slots = Arc::new(Semaphore::new(8));
+    let gate = super::pairing::Pairing::new(false);
+    let mut discovery: Option<super::discovery::Discovery> = None;
     let mut retry = tokio::time::interval(Duration::from_secs(4));
     retry.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
     // Endpoint address lookup/discovery and relay reconnection are managed by iroh.
@@ -444,12 +465,16 @@ async fn run(
             incoming = endpoint.accept() => {
                 let Some(incoming) = incoming else { break; };
                 if let Ok(permit) = slots.clone().try_acquire_owned() {
-                    let ep = endpoint.clone(); let st = state.clone(); let tx = events.clone();
+                    let ep = endpoint.clone(); let st = state.clone(); let tx = events.clone(); let pairing = gate.clone();
                     tokio::spawn(async move {
-                        let result = tokio::time::timeout(SESSION_TIMEOUT, async {
-                            let conn = incoming.await.map_err(err)?;
-                            serve(&ep, conn, st, tx).await
-                        }).await;
+                        let result = async {
+                            let conn = tokio::time::timeout(Duration::from_secs(10), incoming).await.map_err(err)?.map_err(err)?;
+                            if conn.alpn() == super::pairing::ALPN {
+                                super::pairing::serve(&ep, conn, st, pairing, tx).await
+                            } else {
+                                tokio::time::timeout(SESSION_TIMEOUT, serve(&ep, conn, st, tx)).await.map_err(err)?
+                            }
+                        }.await;
                         // Unapproved incoming devices don't create noisy UI errors.
                         let _ = result;
                         drop(permit);
@@ -472,7 +497,36 @@ async fn run(
                     if ticket.addr.id == endpoint.id() { let _ = events.send(Event::Error(None, "This invitation belongs to this device".into())); }
                     else { spawn_dial(endpoint.clone(), ticket.addr, Some(ticket.token), state.clone(), events.clone(), slots.clone()); }
                 },
+                Some(Command::Nearby(enabled)) => {
+                    discovery = None;
+                    gate.stop();
+                    if enabled {
+                        let name = state.lock().unwrap().name.clone();
+                        match super::discovery::Discovery::start(endpoint.clone(), name, events.clone(), Some(state.clone())).await {
+                            Ok(service) => { discovery = Some(service); gate.start(); let _ = events.send(Event::NearbyState(true)); },
+                            Err(e) => { let _ = events.send(Event::NearbyState(false)); let _ = events.send(Event::Error(None, format!("Nearby discovery unavailable: {e}. Check local-network permissions or use an invitation."))); },
+                        }
+                    } else { let _ = events.send(Event::NearbyState(false)); }
+                },
+                Some(Command::NearbyConnect(addr)) => {
+                    if !gate.enabled() || addr.id == endpoint.id() { let _ = events.send(Event::Error(None, "Enable nearby discovery and select another device".into())); }
+                    else if let Ok(permit) = slots.clone().try_acquire_owned() {
+                        let ep = endpoint.clone(); let st = state.clone(); let pairing = gate.clone(); let tx = events.clone();
+                        tokio::spawn(async move {
+                            let id = addr.id;
+                            if let Err(e) = super::pairing::dial(&ep, addr, st, pairing, tx.clone()).await { let _ = tx.send(Event::Error(Some(id), e.to_string())); }
+                            drop(permit);
+                        });
+                    } else { let _ = events.send(Event::Error(None, "Too many active connections. Try again shortly.".into())); }
+                },
+                Some(Command::Decide(id, accept)) => if let Err(e) = gate.decide(&id, accept) { let _ = events.send(Event::Error(None, e.to_string())); },
                 None => break,
+            },
+            _ = async {
+                if let Some(service) = &discovery { tokio::time::sleep_until(tokio::time::Instant::from_std(service.started + super::discovery::WINDOW)).await; }
+                else { std::future::pending::<()>().await; }
+            } => {
+                gate.stop(); discovery = None; let _ = events.send(Event::NearbyState(false));
             },
             _ = retry.tick() => {
                 let peers: Vec<_> = state.lock().unwrap().auth.peers.values().cloned().collect();
@@ -482,6 +536,8 @@ async fn run(
             },
         }
     }
+    gate.stop();
+    drop(discovery);
     endpoint.close().await;
     Ok(())
 }
