@@ -133,6 +133,21 @@ pub fn sync_selection(s: &mut State) {
             .set_selection(r.start + s.live.edit.anchor, r.start + s.live.edit.focus);
     }
 }
+pub fn restore_selection(s: &mut State) {
+    let (anchor, focus) = (s.edit.anchor, s.edit.focus);
+    at(s, focus);
+    let range = s.live.range.clone().unwrap();
+    if anchor < range.start || anchor > range.end {
+        s.live = LiveEditor::default();
+        s.live.full = true;
+        s.edit.focused = true;
+    } else {
+        s.live
+            .edit
+            .set_selection(anchor - range.start, focus - range.start);
+    }
+    s.edit.set_selection(anchor, focus);
+}
 pub fn history(s: &mut State, redo: bool, tx: &mut Tx) {
     sync_selection(s);
     if redo {
@@ -140,7 +155,7 @@ pub fn history(s: &mut State, redo: bool, tx: &mut Tx) {
     } else {
         s.edit.undo();
     }
-    at(s, s.edit.focus);
+    restore_selection(s);
     changed(s, tx);
     tx.scroll_into_view("input");
 }

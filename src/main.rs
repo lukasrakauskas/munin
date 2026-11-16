@@ -1,7 +1,11 @@
+mod commands;
 mod context;
 #[cfg(test)]
 mod entry_tests;
 mod fs;
+mod launcher;
+#[cfg(test)]
+mod launcher_tests;
 mod live;
 #[cfg(test)]
 mod live_tests;
@@ -12,7 +16,7 @@ use ui::view;
 #[cfg(test)]
 mod ui_tests;
 
-use rune::{App, AppSpec, Chord, KeyEvent, TextEdit, Tx};
+use rune::{App, AppSpec, KeyEvent, TextEdit, Tx};
 use state::State;
 use std::time::Duration;
 #[cfg(test)]
@@ -90,12 +94,11 @@ fn start_dialog(s: &mut State, mode: &'static str) {
     s.dialog = Some(mode);
     s.dialog_target = None;
     s.context = None;
+    s.launcher.open = false;
+    s.launcher.query.focused = false;
     live::pause(s);
     s.input = TextEdit::new("");
     s.input.focused = true;
-}
-fn toggle_reading(s: &mut State) {
-    live::toggle(s);
 }
 fn dismiss_dialog(s: &mut State) {
     s.dialog = None;
@@ -135,40 +138,27 @@ fn submit(s: &mut State) {
     }
     report(s, r);
 }
+fn close_note(s: &mut State) {
+    match s.save() {
+        Ok(()) => {
+            cleanup_recovery(s);
+            s.current = None;
+            s.files.clear_selection();
+            s.edit = TextEdit::new("");
+            s.live = live::LiveEditor::default();
+            s.saved.clear();
+            remember(s);
+        }
+        Err(e) => s.error = Some(e.to_string()),
+    }
+}
 fn key(s: &mut State, ev: &KeyEvent, tx: &mut Tx) -> bool {
-    let hit = |name: &str| Chord::parse(name).is_ok_and(|c| c.matches_tx(ev, tx));
     if ev.key == rune::Key::Escape && s.dialog.is_some() {
         dismiss_dialog(s);
-    } else if hit("mod+o") {
-        choose_folder(s, tx);
-    } else if hit("mod+n") {
-        start_dialog(s, "New note");
-    } else if hit("mod+s") {
-        let r = s.save();
-        report(s, r);
-    } else if hit("mod+e") {
-        toggle_reading(s);
-    } else if hit("mod+b") {
-        s.sidebar = !s.sidebar;
-    } else if hit("mod+p") {
-        start_dialog(s, "Quick open");
-    } else if hit("mod+w") {
-        match s.save() {
-            Ok(()) => {
-                cleanup_recovery(s);
-                s.current = None;
-                s.files.clear_selection();
-                s.edit = TextEdit::new("");
-                s.live = live::LiveEditor::default();
-                s.saved.clear();
-                remember(s);
-            }
-            Err(e) => s.error = Some(e.to_string()),
-        }
+        true
     } else {
-        return false;
+        commands::shortcut(s, ev, tx)
     }
-    true
 }
 fn poll(s: &mut State, _: f64, tx: &mut Tx) -> bool {
     let Some(when) = s.changed_at else {
@@ -265,7 +255,7 @@ mod tests {
         rt.pointer_up(x, y);
         rt.frame(0.0);
         rt.key(rune::KeyEvent {
-            key: rune::Key::Command('p'),
+            key: rune::Key::Command('o'),
             mods: rune::Mods {
                 cmd: true,
                 ctrl: !cfg!(target_os = "macos"),
@@ -406,7 +396,7 @@ mod tests {
             Some(std::path::Path::new("note.md"))
         );
         rt.key(rune::KeyEvent {
-            key: rune::Key::Command('b'),
+            key: rune::Key::Command('\\'),
             mods: rune::Mods {
                 cmd: true,
                 ctrl: !cfg!(target_os = "macos"),

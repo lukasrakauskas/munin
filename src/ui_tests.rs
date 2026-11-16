@@ -502,7 +502,7 @@ fn quick_open_long_results_fit_the_dialog() {
     let name = format!("{}.md", "long name ".repeat(20));
     std::fs::write(dir.path().join(&name), "note").unwrap();
     click(&mut rt, "quick-open");
-    let bounds = element(&rt, "note-dialog").rect;
+    let bounds = element(&rt, "command-palette-dialog").rect;
     let label = rt
         .elements()
         .into_iter()

@@ -29,6 +29,9 @@ pub struct State {
     pub error: Option<String>,
     pub sidebar: bool,
     pub live: crate::live::LiveEditor,
+    pub launcher: crate::launcher::Launcher,
+    pub recents: Vec<PathBuf>,
+    pub viewport: (f32, f32),
     pub reading_width: f32,
     pub theme: u8,
     pub dialog: Option<&'static str>,
@@ -155,6 +158,9 @@ impl State {
             error: None,
             sidebar: true,
             live: crate::live::LiveEditor::default(),
+            launcher: crate::launcher::Launcher::default(),
+            recents: Vec::new(),
+            viewport: (1000.0, 700.0),
             reading_width: 640.0,
             theme: 0,
             dialog: None,
@@ -450,6 +456,9 @@ impl State {
         self.live = crate::live::LiveEditor::default();
         self.saved = text;
         self.current = Some(path.to_path_buf());
+        self.recents.retain(|p| p != path);
+        self.recents.insert(0, path.to_path_buf());
+        self.recents.truncate(32);
         self.select_active(path);
         Ok(())
     }

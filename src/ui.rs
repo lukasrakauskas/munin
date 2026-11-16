@@ -122,7 +122,7 @@ fn sidebar(s: &State, k: &Kit, controls_height: f32) -> El {
                         .truncate(),
                 )
                 .child(
-                    action(&glyphs::FOLDER, "Open workspace · Mod+O")
+                    action(&glyphs::FOLDER, "Open workspace folder")
                         .on_press_tx(|s: &mut State, tx| choose_folder(s, tx))
                         .build(k)
                         .key("open-workspace"),
@@ -139,13 +139,15 @@ fn sidebar(s: &State, k: &Kit, controls_height: f32) -> El {
                 Button::new("Find a note…")
                     .icon(&glyphs::SEARCH)
                     .variant(ButtonVariant::GhostMuted)
-                    .on_press(|s: &mut State| start_dialog(s, "Quick open"))
+                    .on_press(|s: &mut State| {
+                        super::launcher::open(s, super::launcher::Scope::Files)
+                    })
                     .build(k)
                     .key("quick-open")
                     .mx(12.0)
                     .mt(12.0)
                     .w(224.0)
-                    .help("Quick open · Mod+P"),
+                    .help("Quick switcher · Ctrl/Cmd+O"),
             )
             .child(
                 row()
@@ -272,7 +274,7 @@ fn header(s: &State, k: &Kit, leading: f32, trailing: f32) -> El {
         .center_y()
         .border_sides([0.0, 0.0, 1.0, 0.0], k.c.border_muted)
         .child(
-            action(&PANEL, "Toggle sidebar · Mod+B")
+            action(&PANEL, "Toggle sidebar · Ctrl/Cmd+Backslash")
                 .on_press(|s: &mut State| s.sidebar = !s.sidebar)
                 .build(k)
                 .key("toggle-sidebar"),
@@ -287,6 +289,12 @@ fn header(s: &State, k: &Kit, leading: f32, trailing: f32) -> El {
                 .truncate()
                 .help(title),
         );
+    header = header.child(
+        action(&glyphs::SEARCH, "Files and actions · Ctrl/Cmd+K")
+            .on_press(|s: &mut State| super::launcher::open(s, super::launcher::Scope::All))
+            .build(k)
+            .key("command-trigger"),
+    );
     if s.current.is_some() {
         header = header
             .child(
@@ -665,9 +673,22 @@ pub(super) fn view(s: &State, cx: &mut Cx<State>) -> El {
     } else {
         pane.child(empty(s, &k))
     };
-    let mut body = row().w_full().h_full().fill(k.c.page);
+    let mut body =
+        row()
+            .w_full()
+            .h_full()
+            .fill(k.c.page)
+            .on_layout_tx(|s: &mut State, rect, tx| {
+                let size = (rect[2], rect[3]);
+                if s.viewport != size {
+                    s.viewport = size;
+                } else {
+                    tx.live_only();
+                }
+            });
     if s.sidebar {
         body = body.child(sidebar(s, &k, controls_height));
     }
-    super::context::menu(s, &k, body.on_key(key).child(pane))
+    let base = super::context::menu(s, &k, body.on_key(key).child(pane));
+    super::launcher::mount(s, &k, base)
 }
