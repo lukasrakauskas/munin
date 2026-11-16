@@ -39,6 +39,45 @@ fn click(rt: &mut Runtime<State>, key: &str) {
 }
 
 #[test]
+fn reading_renders_headings_tables_and_mermaid_without_changing_source() {
+    let source = "# My heading\n\n**Bold** and *italic*.\n\n| Name | Value |\n| --- | --- |\n| Note | Local |\n\n```mermaid\nflowchart LR\n A[Draft] --> B[Keep]\n```\n";
+    let (_dir, mut rt) = note_runtime(source, (1000.0, 900.0), false);
+    click(&mut rt, "toggle-reading");
+    let elements = rt.elements();
+    assert!(
+        elements
+            .iter()
+            .any(|e| e.text.as_deref() == Some("My heading") && e.level == Some(1))
+    );
+    assert!(elements.iter().any(|e| e.role == "table"));
+    assert!(elements.iter().any(|e| e.text.as_deref() == Some("Draft")));
+    assert!(!elements.iter().any(|e| e.key.as_deref() == Some("input")));
+    assert_eq!(rt.state.edit.text, source);
+    click(&mut rt, "toggle-reading");
+    assert!(rt.find("input").is_some());
+    assert_eq!(rt.state.edit.text, source);
+}
+
+#[test]
+fn reading_uses_unsaved_buffer_and_falls_back_for_unsupported_mermaid() {
+    let (_dir, mut rt) = note_runtime("saved", (1000.0, 700.0), true);
+    rt.update(|s, _| s.edit.text = "# Unsaved\n\n```mermaid\nnot-a-diagram\n```\n".into());
+    rt.frame(0.0);
+    click(&mut rt, "toggle-reading");
+    assert!(
+        rt.elements()
+            .iter()
+            .any(|e| e.text.as_deref() == Some("Unsaved"))
+    );
+    assert!(rt.elements().iter().any(|e| {
+        e.text
+            .as_deref()
+            .is_some_and(|t| t.contains("not-a-diagram"))
+    }));
+    assert_eq!(rt.state.saved, "saved");
+}
+
+#[test]
 fn short_note_uses_full_pane_width_and_height() {
     for dark in [false, true] {
         let (_dir, mut rt) = note_runtime("A short note", (1440.0, 1000.0), dark);

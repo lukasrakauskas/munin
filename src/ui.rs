@@ -277,6 +277,14 @@ fn header(s: &State, k: &Kit) -> El {
     if s.current.is_some() {
         header = header
             .child(
+                Button::new(if s.reading { "Write" } else { "Read" })
+                    .variant(ButtonVariant::GhostMuted)
+                    .on_press(super::toggle_reading)
+                    .build(k)
+                    .key("toggle-reading")
+                    .help("Switch writing / reading · Mod+E"),
+            )
+            .child(
                 action(&RENAME, "Rename note")
                     .on_press(|s: &mut State| start_dialog(s, "Rename note"))
                     .build(k)
@@ -344,10 +352,7 @@ fn editor(s: &State, k: &Kit) -> El {
                     .caret(k.c.text_accent, k.selection())
                     .placeholder("Let your thoughts take shape…", k.c.text_muted)
                     .wrap_anywhere()
-                    .decorations(rune_kit::syntax::SyntaxTheme::from_kit(k).spans(
-                        &rune_kit::syntax::highlight(Some("markdown"), &s.edit.text),
-                        0,
-                    ))
+                    .decorations(super::markdown::source_spans(&s.edit.text, k))
                     .on_edit(|s: &mut State| &mut s.edit)
                     .on_input_key(|s: &mut State, ev, tx| {
                         if ev.key == rune::Key::Enter && ev.mods == rune::Mods::default() {
@@ -628,7 +633,26 @@ pub(super) fn view(s: &State, cx: &mut Cx<State>) -> El {
         pane = pane.child(dialog(s, mode, &k));
     }
     pane = if s.current.is_some() {
-        pane.child(editor(s, &k)).child(status(s, &k))
+        pane.child(if s.reading {
+            col()
+                .key("reading-scroll")
+                .w_full()
+                .grow(1.0)
+                .min_h(0.0)
+                .scroll(ScrollSpec {
+                    stick_bottom: false,
+                })
+                .child(
+                    col()
+                        .w_full()
+                        .px(GUTTER)
+                        .py(24.0)
+                        .child(super::markdown::reading(&s.edit.text, &k)),
+                )
+        } else {
+            editor(s, &k)
+        })
+        .child(status(s, &k))
     } else {
         pane.child(empty(s, &k))
     };

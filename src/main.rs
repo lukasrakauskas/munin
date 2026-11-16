@@ -1,4 +1,5 @@
 mod fs;
+mod markdown;
 mod state;
 mod ui;
 use ui::view;
@@ -85,10 +86,14 @@ fn start_dialog(s: &mut State, mode: &'static str) {
     s.input = TextEdit::new("");
     s.input.focused = true;
 }
+fn toggle_reading(s: &mut State) {
+    s.reading = !s.reading;
+    s.edit.focused = !s.reading && s.current.is_some();
+}
 fn dismiss_dialog(s: &mut State) {
     s.dialog = None;
     s.input.focused = false;
-    s.edit.focused = s.current.is_some();
+    s.edit.focused = !s.reading && s.current.is_some();
 }
 fn submit(s: &mut State) {
     let name = s.input.text.trim().to_owned();
@@ -119,6 +124,8 @@ fn key(s: &mut State, ev: &KeyEvent, tx: &mut Tx) -> bool {
     } else if hit("mod+s") {
         let r = s.save();
         report(s, r);
+    } else if hit("mod+e") {
+        toggle_reading(s);
     } else if hit("mod+b") {
         s.sidebar = !s.sidebar;
     } else if hit("mod+p") {
