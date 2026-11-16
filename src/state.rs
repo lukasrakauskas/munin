@@ -28,7 +28,7 @@ pub struct State {
     pub files: TreeModel<FileNode<()>>,
     pub error: Option<String>,
     pub sidebar: bool,
-    pub reading: bool,
+    pub live: crate::live::LiveEditor,
     pub reading_width: f32,
     pub theme: u8,
     pub dialog: Option<&'static str>,
@@ -104,6 +104,7 @@ impl State {
         self.current = Some(data.file);
         self.saved = data.saved;
         self.edit = TextEdit::new(&data.text);
+        self.live = crate::live::LiveEditor::default();
         self.refresh()?;
         self.recovered = true;
         self.error =
@@ -153,7 +154,7 @@ impl State {
             files: TreeModel::new(),
             error: None,
             sidebar: true,
-            reading: false,
+            live: crate::live::LiveEditor::default(),
             reading_width: 640.0,
             theme: 0,
             dialog: None,
@@ -206,7 +207,7 @@ impl State {
             .open(path)?;
         self.refresh()?;
         self.open_file(rel)?;
-        self.reading = false;
+        self.live = crate::live::LiveEditor::default();
         Ok(())
     }
     pub fn create_folder(&mut self, name: &str) -> io::Result<()> {
@@ -335,6 +336,7 @@ impl State {
         std::fs::remove_file(path)?;
         self.current = None;
         self.edit = TextEdit::new("");
+        self.live = crate::live::LiveEditor::default();
         self.saved.clear();
         self.refresh()
     }
@@ -445,6 +447,7 @@ impl State {
         }
         let text = std::fs::read_to_string(full)?;
         self.edit = TextEdit::new(&text);
+        self.live = crate::live::LiveEditor::default();
         self.saved = text;
         self.current = Some(path.to_path_buf());
         self.select_active(path);

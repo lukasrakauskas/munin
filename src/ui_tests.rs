@@ -10,6 +10,9 @@ fn note_runtime(
     std::fs::write(dir.path().join("note.md"), content).unwrap();
     let mut s = State::restore(Some(dir.path().to_path_buf()), None);
     s.open_file("note.md").unwrap();
+    // Exercise the document-wide native selection surface in legacy input/layout tests.
+    s.edit.focused = true;
+    s.live.full = true;
     let mut rt = Runtime::new(
         s,
         view,
@@ -30,6 +33,12 @@ fn element(rt: &Runtime<State>, key: &str) -> ElementInfo {
         .unwrap_or_else(|| panic!("missing {key}"))
 }
 
+fn rendered(rt: &mut Runtime<State>) {
+    rt.update(|s, _| crate::live::blur(s));
+    rt.frame(0.0);
+    rt.frame(1.0);
+}
+
 fn click(rt: &mut Runtime<State>, key: &str) {
     let (x, y) = rt.find(key).unwrap();
     rt.pointer_down(x, y);
@@ -42,7 +51,7 @@ fn click(rt: &mut Runtime<State>, key: &str) {
 fn reading_renders_headings_tables_and_mermaid_without_changing_source() {
     let source = "# My heading\n\n**Bold** and *italic*.\n\n| Name | Value |\n| --- | --- |\n| Note | Local |\n\n```mermaid\nflowchart LR\n A[Draft] --> B[Keep]\n```\n";
     let (_dir, mut rt) = note_runtime(source, (1000.0, 900.0), false);
-    click(&mut rt, "toggle-reading");
+    rendered(&mut rt);
     let elements = rt.elements();
     assert!(
         elements
@@ -53,7 +62,7 @@ fn reading_renders_headings_tables_and_mermaid_without_changing_source() {
     assert!(elements.iter().any(|e| e.text.as_deref() == Some("Draft")));
     assert!(!elements.iter().any(|e| e.key.as_deref() == Some("input")));
     assert_eq!(rt.state.edit.text, source);
-    click(&mut rt, "toggle-reading");
+    click(&mut rt, "live-block-0");
     assert!(rt.find("input").is_some());
     assert_eq!(rt.state.edit.text, source);
 }
@@ -63,7 +72,7 @@ fn reading_uses_unsaved_buffer_and_falls_back_for_unsupported_mermaid() {
     let (_dir, mut rt) = note_runtime("saved", (1000.0, 700.0), true);
     rt.update(|s, _| s.edit.text = "# Unsaved\n\n```mermaid\nnot-a-diagram\n```\n".into());
     rt.frame(0.0);
-    click(&mut rt, "toggle-reading");
+    rendered(&mut rt);
     assert!(
         rt.elements()
             .iter()
@@ -242,7 +251,7 @@ fn native_overlay_strip_disappears_in_fullscreen_and_clears_trailing_controls() 
 fn reading_diagram_fits_a_narrow_pane_without_clipping_node_labels() {
     let source = "```mermaid\nflowchart LR\n A[Notice an idea] --> B[Write it down]\n B --> C[Make it yours]\n```\n";
     let (_dir, mut rt) = note_runtime(source, (640.0, 700.0), false);
-    click(&mut rt, "toggle-reading");
+    rendered(&mut rt);
     rt.frame(1.0);
     for label in ["Notice an idea", "Make it yours"] {
         let node = rt
@@ -262,7 +271,7 @@ fn reading_diagram_fits_a_narrow_pane_without_clipping_node_labels() {
 #[test]
 fn new_note_from_reading_opens_a_focused_writing_surface() {
     let (dir, mut rt) = note_runtime("keep", (1000.0, 700.0), false);
-    click(&mut rt, "toggle-reading");
+    rendered(&mut rt);
     click(&mut rt, "new-note");
     rt.update(|s, _| s.input = TextEdit::new("fresh"));
     rt.frame(0.0);
@@ -308,7 +317,7 @@ fn reading_table_header_and_cells_fill_the_same_frame() {
         (1200.0, 800.0),
         true,
     );
-    click(&mut rt, "toggle-reading");
+    rendered(&mut rt);
     rt.frame(1.0);
     let elements = rt.elements();
     let table = elements.iter().find(|e| e.role == "table").unwrap();
@@ -472,6 +481,7 @@ fn long_path_does_not_push_note_actions_outside_a_narrow_pane() {
     std::fs::write(dir.path().join(&long_name), "note").unwrap();
     rt.update(|s, _| {
         s.open_file(&long_name).unwrap();
+        crate::live::whole(s, false);
     });
     rt.frame(1.0);
     for key in ["note-path", "rename-note", "delete-note", "close-note"] {

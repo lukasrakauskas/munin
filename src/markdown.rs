@@ -17,6 +17,7 @@ pub fn reading(source: &str, k: &Kit, width: f32) -> El {
         .style(style)
         .scroll_wide(true)
         .tasks_read_only()
+        .selectable(false)
         .on_link_tx(|s: &mut crate::state::State, url, tx| {
             if (url.starts_with("https://")
                 || url.starts_with("http://")

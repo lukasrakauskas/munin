@@ -290,14 +290,6 @@ fn header(s: &State, k: &Kit, leading: f32, trailing: f32) -> El {
     if s.current.is_some() {
         header = header
             .child(
-                Button::new(if s.reading { "Write" } else { "Read" })
-                    .variant(ButtonVariant::GhostMuted)
-                    .on_press(super::toggle_reading)
-                    .build(k)
-                    .key("toggle-reading")
-                    .help("Switch writing / reading · Mod+E"),
-            )
-            .child(
                 action(&RENAME, "Rename note")
                     .on_press(|s: &mut State| start_dialog(s, "Rename note"))
                     .build(k)
@@ -333,7 +325,7 @@ fn header(s: &State, k: &Kit, leading: f32, trailing: f32) -> El {
     header
 }
 
-fn editor(s: &State, k: &Kit) -> El {
+pub(super) fn editor(s: &State, k: &Kit) -> El {
     // One bounded viewport, with gutters INSIDE its content. No auto-growing form shell:
     // both the painted surface and scroll hit area fill the available pane.
     col()
@@ -348,6 +340,7 @@ fn editor(s: &State, k: &Kit) -> El {
         .scroll_margin(24.0)
         .on_press_tx(|s: &mut State, tx| {
             if s.dialog.is_none() {
+                s.live.full = true;
                 tx.focus("input", false);
             }
         })
@@ -368,6 +361,10 @@ fn editor(s: &State, k: &Kit) -> El {
                     .decorations(super::markdown::source_spans(&s.edit.text, k))
                     .on_edit(|s: &mut State| &mut s.edit)
                     .on_input_key(|s: &mut State, ev, tx| {
+                        if ev.key == rune::Key::Escape && s.dialog.is_none() {
+                            super::live::blur(s);
+                            return true;
+                        }
                         if ev.key == rune::Key::Enter && ev.mods == rune::Mods::default() {
                             s.edit.key(
                                 &rune::KeyEvent {
@@ -663,34 +660,8 @@ pub(super) fn view(s: &State, cx: &mut Cx<State>) -> El {
         pane = pane.child(dialog(s, mode, &k));
     }
     pane = if s.current.is_some() {
-        pane.child(if s.reading {
-            col()
-                .key("reading-scroll")
-                .w_full()
-                .grow(1.0)
-                .min_h(0.0)
-                .scroll(ScrollSpec {
-                    stick_bottom: false,
-                })
-                .child(
-                    col()
-                        .w_full()
-                        .px(GUTTER)
-                        .py(24.0)
-                        .on_layout_tx(|s: &mut State, rect, tx| {
-                            let width = (rect[2] - GUTTER * 2.0).max(1.0);
-                            if (s.reading_width - width).abs() > 0.5 {
-                                s.reading_width = width;
-                            } else {
-                                tx.live_only();
-                            }
-                        })
-                        .child(super::markdown::reading(&s.edit.text, &k, s.reading_width)),
-                )
-        } else {
-            editor(s, &k)
-        })
-        .child(status(s, &k))
+        pane.child(super::live::view(s, &k, cx))
+            .child(status(s, &k))
     } else {
         pane.child(empty(s, &k))
     };

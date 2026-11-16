@@ -2,6 +2,9 @@ mod context;
 #[cfg(test)]
 mod entry_tests;
 mod fs;
+mod live;
+#[cfg(test)]
+mod live_tests;
 mod markdown;
 mod state;
 mod ui;
@@ -87,19 +90,18 @@ fn start_dialog(s: &mut State, mode: &'static str) {
     s.dialog = Some(mode);
     s.dialog_target = None;
     s.context = None;
-    s.edit.focused = false;
+    live::pause(s);
     s.input = TextEdit::new("");
     s.input.focused = true;
 }
 fn toggle_reading(s: &mut State) {
-    s.reading = !s.reading;
-    s.edit.focused = !s.reading && s.current.is_some();
+    live::toggle(s);
 }
 fn dismiss_dialog(s: &mut State) {
     s.dialog = None;
     s.dialog_target = None;
     s.input.focused = false;
-    s.edit.focused = !s.reading && s.current.is_some();
+    live::focus(s);
 }
 fn submit(s: &mut State) {
     let name = s.input.text.trim().to_owned();
@@ -157,6 +159,7 @@ fn key(s: &mut State, ev: &KeyEvent, tx: &mut Tx) -> bool {
                 s.current = None;
                 s.files.clear_selection();
                 s.edit = TextEdit::new("");
+                s.live = live::LiveEditor::default();
                 s.saved.clear();
                 remember(s);
             }
