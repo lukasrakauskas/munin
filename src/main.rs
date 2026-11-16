@@ -190,6 +190,9 @@ fn poll(s: &mut State, _: f64, tx: &mut Tx) -> bool {
     true
 }
 fn main() {
+    if let Err(error) = rune::set_app_icon(include_bytes!("../assets/munin-icon.png").to_vec()) {
+        eprintln!("Could not set Munin app icon: {error}");
+    }
     let spec = AppSpec {
         on_key: Some(key),
         poll: Some(poll),

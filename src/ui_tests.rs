@@ -48,6 +48,26 @@ fn click(rt: &mut Runtime<State>, key: &str) {
 }
 
 #[test]
+fn raven_branding_is_visible_with_and_without_the_sidebar() {
+    let mut rt = Runtime::new(
+        State::restore(None, None),
+        view,
+        (1000.0, 700.0),
+        Env {
+            system_dark: true,
+            scale: 1.0,
+        },
+    );
+    rt.frame(0.0);
+    assert!(rt.find("sidebar-logo").is_some());
+    assert!(rt.find("welcome-logo").is_some());
+    rt.update(|s, _| s.sidebar = false);
+    rt.frame(0.1);
+    assert!(rt.find("sidebar-logo").is_none());
+    assert!(rt.find("welcome-logo").is_some());
+}
+
+#[test]
 fn markdown_code_copy_copies_each_block_without_activating_the_editor() {
     let source = "Before\n\n```rust\nlet bird = \"Žąsis 🐦\";\n\tprintln!(\"{bird}\");\n```\n\nBetween with `inline`.\n\n~~~text\nsecond block\n  keeps spaces\n~~~\n";
     let (_dir, mut rt) = note_runtime(source, (1000.0, 900.0), true);

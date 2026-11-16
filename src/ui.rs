@@ -8,6 +8,11 @@ use rune_kit::{
 use std::time::{Duration, Instant};
 
 const GUTTER: f32 = 28.0;
+static LOGO: Icon = Icon {
+    name: "munin-raven",
+    view: 1254.0,
+    body: include_str!("../assets/munin-logo.svg"),
+};
 static PANEL: Icon = Icon {
     name: "munin-panel",
     view: 24.0,
@@ -84,12 +89,13 @@ fn sidebar(s: &State, k: &Kit, controls_height: f32) -> El {
                         .w(32.0)
                         .h(32.0)
                         .radius(9.0)
-                        .fill(k.alpha(k.c.text_accent, 0.14))
+                        .fill(rune::color::hex("#f5f5f8").unwrap())
                         .center()
                         .child(
-                            text("M")
-                                .font(TextStyle::new(18.0, 650.0))
-                                .color(k.c.text_accent),
+                            icon(&LOGO, 32.0)
+                                .key("sidebar-logo")
+                                .role("img")
+                                .label("Munin raven"),
                         ),
                 )
                 .child(
@@ -470,9 +476,14 @@ fn empty(s: &State, k: &Kit) -> El {
                 .w(64.0)
                 .h(64.0)
                 .radius(18.0)
-                .fill(k.alpha(k.c.text_accent, 0.1))
+                .fill(rune::color::hex("#f5f5f8").unwrap())
                 .center()
-                .child(icon(&glyphs::FILE_TEXT, 28.0).color(k.c.text_accent)),
+                .child(
+                    icon(&LOGO, 64.0)
+                        .key("welcome-logo")
+                        .role("img")
+                        .label("Munin raven"),
+                ),
         )
         .child(
             text("Make room for a new idea.")

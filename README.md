@@ -1,5 +1,7 @@
 # Munin
 
+<img src="assets/munin-logo.svg" alt="Munin raven" width="128">
+
 A local Markdown workspace built with Rust, Rune and RuneKit. Your notes stay plain `.md` files—no account, server or cloud required.
 
 ## One document, live preview
