@@ -17,7 +17,7 @@ pub struct LiveEditor {
 }
 
 pub fn blocks(source: &str) -> Vec<Range<usize>> {
-    use pulldown_cmark::{Event, Options, Parser};
+    use pulldown_cmark::{CodeBlockKind, Event, Options, Parser, Tag};
     let mut starts = vec![0];
     let mut depth = 0usize;
     for (event, range) in Parser::new_ext(
@@ -27,9 +27,16 @@ pub fn blocks(source: &str) -> Vec<Range<usize>> {
     .into_offset_iter()
     {
         match event {
-            Event::Start(_) => {
-                if depth == 0 && range.start > 0 {
-                    starts.push(range.start);
+            Event::Start(tag) => {
+                // Indented code's parser range starts after its first indentation.
+                // Keep that indentation in this block, not in the preceding one.
+                let start = if matches!(tag, Tag::CodeBlock(CodeBlockKind::Indented)) {
+                    source[..range.start].rfind('\n').map_or(0, |i| i + 1)
+                } else {
+                    range.start
+                };
+                if depth == 0 && start > 0 {
+                    starts.push(start);
                 }
                 depth += 1;
             }

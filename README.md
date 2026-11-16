@@ -12,6 +12,8 @@ Edits patch the exact source bytes, preserving surrounding whitespace, CRLF and 
 
 This is native **block-level** live preview, not a complete clone of Obsidian/CodeMirror. Active blocks expose their Markdown syntax; tables and diagrams expose their source when edited. Reading arbitrary cross-block mouse selections is not a rich-text editing feature—use the full-document selection surface for those operations.
 
+Code previews include a **Copy** button for fenced and indented snippets, including snippets inside quotes/lists. It copies the displayed code without the fences and does not enter edit mode. [Code-copy preview](docs/images/markdown-copy-dark.png).
+
 Mermaid renders locally without JavaScript, a browser or network service. Unsupported diagram syntax stays readable as code. Remote images are not downloaded automatically. Task checkboxes are rendered read-only; use the palette's **Toggle task checkbox** action or edit their Markdown.
 
 [Dark live preview](docs/images/workspace-dark.png) · [Table editing](docs/images/live-table-edit.png) · [Narrow layout](docs/images/workspace-narrow.png) · [Sample note](docs/examples/rendered-note.md)
@@ -63,7 +65,7 @@ Open **Settings & device sync** in the sidebar, use the header gear with the sid
 
 1. Open a workspace on each device and choose **Enable device sync**.
 2. Choose **Create invitation** on the first device and **Copy invitation**.
-3. Privately send the code to the other device, paste it into **Have an invitation?**, and connect. Invitations expire after ten minutes and approve one device.
+3. Privately send the code to the other device, paste it into **Have an invitation?**, and connect. Long codes are selectable inside their own scroll area; **Copy invitation** and **Revoke invitation** remain outside the selection. Invitations expire after ten minutes and approve one device.
 4. Keep both apps open for the initial exchange. Afterwards, edit offline as usual; paired devices retry automatically when both are available.
 
 No account or hosted document service is required. **Automerge** merges concurrent text edits; **iroh** provides authenticated, end-to-end encrypted QUIC connections with direct links and relay fallback. Settings reports the last successful exchange and individual device errors—not merely whether sync was enabled. Existing notes on both devices are kept; colliding filenames get deterministic `(conflict …)` copies. Concurrent edits survive a concurrent deletion. Renames propagate when removed/added content identifies a unique match; otherwise they become delete/create operations.

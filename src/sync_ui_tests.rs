@@ -28,6 +28,70 @@ fn click(rt: &mut Runtime<State>, key: &str) {
     rt.frame(0.3);
 }
 #[test]
+fn long_invitation_selection_is_clipped_and_copy_and_revoke_remain_usable() {
+    for width in [430.0, 1000.0] {
+        let (_dir, mut rt) = runtime(width);
+        let clipboard = rune::clipboard::memory();
+        rt.use_clipboard(&clipboard);
+        let invitation = format!("munin1-{}", "abcdefgh01234567".repeat(400));
+        rt.update(|s, _| {
+            s.sync.set_enabled(true).unwrap();
+            s.sync.invitation = Some((invitation.clone(), Instant::now()));
+            settings::open(s);
+        });
+        rt.frame(0.3);
+        rt.update(|_, tx| {
+            tx.scroll_into_view("sync-copy-invite");
+        });
+        rt.frame(0.3);
+        rt.frame(0.3);
+        let viewport = rt
+            .elements()
+            .into_iter()
+            .find(|e| e.key.as_deref() == Some("sync-invitation-viewport"))
+            .expect("invitation needs a bounded selection viewport");
+        let code = rt
+            .elements()
+            .into_iter()
+            .find(|e| e.key.as_deref() == Some("sync-invitation-code"))
+            .unwrap();
+        let copy = rt
+            .elements()
+            .into_iter()
+            .find(|e| e.key.as_deref() == Some("sync-copy-invite"))
+            .unwrap();
+        let revoke = rt
+            .elements()
+            .into_iter()
+            .find(|e| e.key.as_deref() == Some("sync-revoke"))
+            .unwrap();
+        assert!(code.rect[3] > viewport.rect[3], "fixture must overflow");
+        assert!(code.visible[1] >= viewport.visible[1] - 0.5);
+        assert!(code.visible[1] + code.visible[3] <= viewport.rect[1] + viewport.rect[3] + 0.5);
+        assert!(copy.rect[1] >= viewport.rect[1] + viewport.rect[3]);
+        assert!(revoke.rect[1] >= viewport.rect[1] + viewport.rect[3]);
+        assert!(revoke.rect[0] + revoke.rect[2] <= width);
+        rt.update(|_, tx| tx.select_all_text("sync-invitation-code"));
+        rt.frame(0.3);
+        assert_eq!(rt.selected_text().as_deref(), Some(invitation.as_str()));
+        let (x, y) = rt.find("sync-revoke").unwrap();
+        assert!(
+            !rt.contains("sync-invitation-code", x, y),
+            "code selection must not reach Revoke"
+        );
+        click(&mut rt, "sync-copy-invite");
+        assert_eq!(
+            clipboard.text().as_deref().map(String::as_str),
+            Some(invitation.as_str())
+        );
+        assert!(rt.state.sync.invitation.is_some(), "copy must not revoke");
+        click(&mut rt, "sync-revoke");
+        assert!(rt.state.sync.invitation.is_none());
+        assert_eq!(rt.state.edit.text, "middle");
+    }
+}
+
+#[test]
 fn settings_opens_from_button_and_shortcut_without_editing_note() {
     let (_dir, mut rt) = runtime(1000.0);
     click(&mut rt, "open-settings");

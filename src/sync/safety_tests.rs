@@ -62,7 +62,10 @@ fn idle_sync_does_not_rewrite_durable_history() {
     let mut store = seeded(&dir);
     let metadata = dir.path().join(".munin-sync/workspace.json");
     let old = std::time::UNIX_EPOCH + std::time::Duration::from_secs(10_000);
-    fs::File::open(&metadata)
+    // Windows requires write access to update file timestamps.
+    fs::OpenOptions::new()
+        .write(true)
+        .open(&metadata)
         .unwrap()
         .set_times(fs::FileTimes::new().set_modified(old))
         .unwrap();

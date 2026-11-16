@@ -220,33 +220,56 @@ pub fn view(s: &State, k: &Kit, leading: f32, trailing: f32) -> El {
                     k,
                 ))
                 .child(
-                    text(code.clone())
-                        .key("sync-invitation-code")
+                    col()
+                        .key("sync-invitation-viewport")
                         .w_full()
-                        .max_h(90.0)
-                        .wrap_anywhere()
-                        .font(k.ty.ui)
-                        .color(k.c.text_base)
-                        .selectable(true),
+                        .min_w(0.0)
+                        .h(112.0)
+                        .min_h(0.0)
+                        .radius(8.0)
+                        .fill(k.c.page)
+                        .border(1.0, k.c.border_muted)
+                        .selection_group(true)
+                        .scroll(ScrollSpec {
+                            stick_bottom: false,
+                        })
+                        .child(
+                            text(code.clone())
+                                .key("sync-invitation-code")
+                                .w_full()
+                                .px(12.0)
+                                .py(10.0)
+                                .wrap_anywhere()
+                                .font(k.ty.mono)
+                                .color(k.c.text_base)
+                                .selectable(true)
+                                .selection_color(k.selection()),
+                        ),
                 )
                 .child(
-                    Button::new("Copy invitation")
-                        .variant(ButtonVariant::Submit)
-                        .on_press_tx(move |_: &mut State, tx| {
-                            tx.copy_secret(code.clone(), Duration::from_secs(600));
-                        })
-                        .build(k)
-                        .key("sync-copy-invite"),
-                )
-                .child(
-                    Button::new("Revoke invitation")
-                        .variant(ButtonVariant::Ghost)
-                        .on_press(|s: &mut State| {
-                            let r = s.sync.revoke();
-                            result(s, r);
-                        })
-                        .build(k)
-                        .key("sync-revoke"),
+                    row()
+                        .w_full()
+                        .gap(8.0)
+                        .child(
+                            Button::new("Copy invitation")
+                                .icon(&glyphs::COPY)
+                                .variant(ButtonVariant::Submit)
+                                .on_press_tx(move |_: &mut State, tx| {
+                                    tx.copy_secret(code.clone(), Duration::from_secs(600));
+                                })
+                                .build(k)
+                                .key("sync-copy-invite"),
+                        )
+                        .child(
+                            Button::new("Revoke invitation")
+                                .variant(ButtonVariant::Ghost)
+                                .on_press(|s: &mut State| {
+                                    let r = s.sync.revoke();
+                                    result(s, r);
+                                })
+                                .build(k)
+                                .key("sync-revoke"),
+                        ),
                 );
         } else {
             invite = invite.child(

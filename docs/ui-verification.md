@@ -20,7 +20,7 @@ macOS clearance follows runtime native-control insets. Tests simulate a 78px lea
 
 ## Checks and captures
 
-Current local verification: formatting, all **101 Rust tests**, strict Clippy, build and whitespace checks. Tests cover:
+Current local verification: formatting, all **104 Rust tests**, strict Clippy, build and whitespace checks. Tests cover:
 - live in-place edits, surrounding byte preservation, CRLF and Unicode;
 - nested source emphasis, tables/diagrams, malformed Mermaid fallback;
 - undo across blocks and caret restoration, IME, document selection/clipboard, block and document navigation, forward deletion and new paragraphs;
@@ -49,6 +49,16 @@ Additional tests cover:
 Actual Mesa-rendered captures: [dark enabled settings](images/sync-settings-dark.png), [pairing/devices](images/sync-pairing-dark.png), and [430px light settings](images/sync-settings-narrow-light.png). Captures use a disposable workspace and public device key, never a live invitation or private key.
 
 Verification is local on Linux, including two real iroh endpoints using direct loopback transport with external relays disabled in tests. Public-internet/NAT/relay interoperability and physical macOS/Windows devices were **not** exercised; no claim of native cross-platform or WAN testing is made. Author self-review only, per the no-subagents request. Explicit trust/topology, removal semantics and recovery limits are documented in README.
+
+## Invitation selection and code-copy controls
+
+Long invitation text now lives inside a fixed-height scroll viewport with an explicit selection highlight. Copy/Revoke are adjacent outside that viewport. A regression uses a 6,407-character synthetic invitation at 430px and 1000px widths, selects the whole code, verifies its visible bounds, copies the entire secret through the actual memory clipboard, and revokes it without modifying the note. Native secret clipboard expiry is retained.
+
+Markdown code frames have separate language/Copy headers. Clipboard tests cover multiple fenced blocks, Unicode, tabs, spaces, nested quotes and indented code. Copy does not activate a live block, alter the document or mark it dirty. The indented-code regression exposed a parser boundary starting after the first line's indentation; live block partitioning now retains that indentation with its code block.
+
+Actual captures: [clipped invitation selection with visible actions](images/sync-invitation-selection-light.png) and [Markdown copy headers](images/markdown-copy-dark.png). The pictured invitation was generated in a disposable process and invalidated when that process closed; it is not an active grant. No private device key is pictured.
+
+The existing Windows CI failure in `idle_sync_does_not_rewrite_durable_history` was traced to `File::open` requesting only read access before `set_times`. Its fixture now opens with write access, required by Windows; the assertion remains intact. Local Linux verification does not substitute for the Windows CI rerun.
 
 ## Reproduce
 

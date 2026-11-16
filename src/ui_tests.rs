@@ -48,6 +48,83 @@ fn click(rt: &mut Runtime<State>, key: &str) {
 }
 
 #[test]
+fn markdown_code_copy_copies_each_block_without_activating_the_editor() {
+    let source = "Before\n\n```rust\nlet bird = \"Žąsis 🐦\";\n\tprintln!(\"{bird}\");\n```\n\nBetween with `inline`.\n\n~~~text\nsecond block\n  keeps spaces\n~~~\n";
+    let (_dir, mut rt) = note_runtime(source, (1000.0, 900.0), true);
+    let clipboard = rune::clipboard::memory();
+    rt.use_clipboard(&clipboard);
+    rendered(&mut rt);
+    let buttons: Vec<_> = rt
+        .elements()
+        .into_iter()
+        .filter(|e| {
+            e.key
+                .as_deref()
+                .is_some_and(|k| k.starts_with("copy-code-"))
+        })
+        .collect();
+    assert_eq!(
+        buttons.len(),
+        2,
+        "one copy control per block, none for inline code"
+    );
+    for (button, expected) in buttons.iter().zip([
+        "let bird = \"Žąsis 🐦\";\n\tprintln!(\"{bird}\");",
+        "second block\n  keeps spaces",
+    ]) {
+        let x = button.rect[0] + button.rect[2] / 2.0;
+        let y = button.rect[1] + button.rect[3] / 2.0;
+        rt.pointer_down(x, y);
+        rt.pointer_up(x, y);
+        rt.frame(0.3);
+        assert_eq!(
+            clipboard.text().as_deref().map(String::as_str),
+            Some(expected)
+        );
+        assert!(
+            rt.state.live.range.is_none(),
+            "copy must not activate the enclosing block"
+        );
+        assert_eq!(rt.state.edit.text, source);
+        assert!(rt.state.changed_at.is_none());
+    }
+}
+
+#[test]
+fn nested_and_indented_code_copy_buttons_fit_narrow_markdown() {
+    let source = "> Quote\n>\n> ```text\n> nested Žąsis\n> second line\n> ```\n\n    indented\n    two lines\n";
+    let (_dir, mut rt) = note_runtime(source, (480.0, 900.0), false);
+    rt.update(|s, _| s.sidebar = false);
+    let clipboard = rune::clipboard::memory();
+    rt.use_clipboard(&clipboard);
+    rendered(&mut rt);
+    let buttons: Vec<_> = rt
+        .elements()
+        .into_iter()
+        .filter(|e| {
+            e.key
+                .as_deref()
+                .is_some_and(|k| k.starts_with("copy-code-"))
+        })
+        .collect();
+    assert_eq!(buttons.len(), 2);
+    for (button, expected) in buttons
+        .iter()
+        .zip(["nested Žąsis\nsecond line", "indented\ntwo lines"])
+    {
+        assert!(button.rect[0] >= 0.0 && button.rect[0] + button.rect[2] <= 480.0);
+        rt.pointer_down(button.rect[0] + 10.0, button.rect[1] + 10.0);
+        rt.pointer_up(button.rect[0] + 10.0, button.rect[1] + 10.0);
+        rt.frame(0.3);
+        assert_eq!(
+            clipboard.text().as_deref().map(String::as_str),
+            Some(expected)
+        );
+        assert_eq!(rt.state.edit.text, source);
+    }
+}
+
+#[test]
 fn reading_renders_headings_tables_and_mermaid_without_changing_source() {
     let source = "# My heading\n\n**Bold** and *italic*.\n\n| Name | Value |\n| --- | --- |\n| Note | Local |\n\n```mermaid\nflowchart LR\n A[Draft] --> B[Keep]\n```\n";
     let (_dir, mut rt) = note_runtime(source, (1000.0, 900.0), false);
