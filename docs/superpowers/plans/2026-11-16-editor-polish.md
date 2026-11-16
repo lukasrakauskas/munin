@@ -37,6 +37,6 @@
 
 ### Task 2: Review and PR
 **Files:** Review branch diff and docs. No new interfaces.
-- [ ] Self-review all changes against the spec and five review focus cases; record evidence and limitations.
-- [ ] Re-run formatting, full tests, clippy and build; expected all pass. Commit any verified fixes and mark plan progress.
-- [ ] Push feature branch and `gh pr create` against main, including screenshots and testing notes. Expected: accessible PR URL.
+- [x] Self-review all changes against the spec and five review focus cases; record evidence and limitations.
+- [x] Re-run formatting, full tests, clippy and build; expected all pass. Commit any verified fixes and mark plan progress.
+Final remote handoff, only after every local commit and check: push feature branch once and `gh pr create` against main, including screenshots and testing notes. Expected: accessible PR URL (reported in the session, not via a second documentation-only push).

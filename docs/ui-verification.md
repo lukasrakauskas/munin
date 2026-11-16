@@ -22,6 +22,8 @@ The width, Escape, tree-gutter, welcome wrapping and quick-open overflow tests w
 
 ## Actual renders
 
+Local verification passed: `cargo fmt --check`, all 38 tests, `cargo clippy --all-targets -- -D warnings`, `cargo build`, and `git diff --check`. The branch received an author self-review; no subagents or independent reviewer were used.
+
 The PNGs under `docs/images/` were rendered by the application, not mockups. Checked light/dark at 1200×800, a 640×520 light workspace, the empty welcome screen, sidebar-hidden dark mode, and the bottom of a long note. Rune's headless renderer used Mesa software Vulkan on Linux. No native macOS/Windows checks were performed.
 
 Build and render a workspace using an isolated configuration (Linux):
