@@ -78,6 +78,14 @@ cargo test -- --ignored --test-threads=1
 
 They exercise (1) actual GPU drawing versus an unmodified UI baseline, reduced-motion and post-effect idle frames, (2) two real endpoints discovering each other over multicast, and (3) the full application worker flow: discovery, connect, matching fingerprints, bilateral acceptance and bidirectional Markdown sync **without generating or exchanging an invitation code**. Physical multi-device LANs, restrictive router/firewall configurations and native macOS/Windows operation still require verification. Author self-review only; no subagents used.
 
+## Raven logo and theme presets
+
+The supplied `assets/munin-logo.svg` is kept unchanged and rendered in the sidebar and welcome state. A light backing preserves the dark artwork in either appearance. `assets/munin-icon.png` is a 512px raster with that backing for Rune’s native macOS/Windows app-icon API; Linux has no runtime app-icon support in the pinned Rune version. Dock/taskbar integration has not been manually exercised.
+
+The General tab now offers twelve appearances, including nine terminal/GitHub-inspired presets. Its radio group uses Rune’s roving keyboard focus and a two-column narrow / three-column desktop layout. Regression tests exercise every choice at 430px and 1200px, arrow/Enter navigation, command/sidebar cycling, preference round trips, invalid-ID fallback, system-versus-fixed appearance, yellow GitHub selection, and text/selection contrast. Existing numeric preference IDs 0–2 keep their original meanings.
+
+Current macOS verification: **129 tests passed, three optional sync/GPU smoke tests ignored**; `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, and `cargo build` passed. Actual headless GPU renders were inspected for all nine added palettes, plus desktop/narrow theme pickers. Captures use disposable notes and isolated preferences: [GitHub Light](images/theme-github-light.png), [GitHub Dark](images/theme-github-dark.png), [desktop picker](images/theme-picker-light.png), [narrow picker](images/theme-picker-narrow.png). Contrast assertions composite selection using Rune’s default sRGB blend mode. Syntax highlighting and status colors retain RuneKit’s light/dark defaults. Author self-review only; no subagents, theme editor, or new dependencies.
+
 ## Reproduce
 
 ```sh

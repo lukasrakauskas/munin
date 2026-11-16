@@ -1,5 +1,7 @@
 # Munin
 
+<img src="assets/munin-logo.svg" alt="Munin raven" width="128">
+
 A local Markdown workspace built with Rust, Rune and RuneKit. Your notes stay plain `.md` files—no account, server or cloud required.
 
 ## One document, live preview
@@ -50,6 +52,16 @@ Mermaid renders locally without JavaScript, a browser or network service. Unsupp
 | Ctrl/Cmd+Shift+Z | Redo (Ctrl+Y also works on Windows/Linux) |
 
 Native clipboard and character/word/line selection shortcuts remain available. Ctrl+Home/End on Windows/Linux and Cmd+Up/Down on macOS navigate the document, not just the active block. Open the workspace folder with the sidebar folder button or the **Open workspace folder** palette action.
+
+## Themes
+
+Choose a palette in **Settings → General → Appearance**. Changes apply immediately to the workspace, editor, launcher and settings, and are remembered across restarts. The sidebar appearance button and the palette’s **Cycle appearance** action cycle through every theme.
+
+- **System**, **Light**, **Dark** preserve Munin’s original appearance. Only System follows your desktop’s light/dark preference.
+- **Tango**, **Solarized Light / Dark**, **Gruvbox Light / Dark**, **Dracula**, and **Nord** adapt familiar terminal palettes to the whole app. Some secondary/accent colors are adjusted for readable UI contrast.
+- **GitHub Light / Dark** use GitHub-like neutral surfaces with yellow/amber selection, highlights and focus accents rather than blue.
+
+[Theme picker](docs/images/theme-picker-light.png) · [Narrow picker](docs/images/theme-picker-narrow.png) · [GitHub Light](docs/images/theme-github-light.png) · [GitHub Dark](docs/images/theme-github-dark.png)
 
 ## Workspace and safety
 

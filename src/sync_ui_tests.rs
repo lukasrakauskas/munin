@@ -141,6 +141,67 @@ fn desktop_settings_tabs_separate_content_and_use_two_sync_columns() {
 }
 
 #[test]
+fn theme_choices_fit_desktop_and_narrow_settings_without_changing_the_note() {
+    for width in [430.0, 1200.0] {
+        let (_dir, mut rt) = runtime(width);
+        rt.update(|s, _| {
+            settings::open(s);
+            s.settings_tab = settings::Tab::General;
+        });
+        rt.frame(0.3);
+        for id in 0..12 {
+            let key = format!("settings-theme-{id}");
+            let choice = rt
+                .elements()
+                .into_iter()
+                .find(|e| e.key.as_deref() == Some(&key))
+                .unwrap_or_else(|| panic!("missing {key}"));
+            assert!(choice.rect[0] >= 0.0 && choice.rect[0] + choice.rect[2] <= width);
+            click(&mut rt, &key);
+            assert_eq!(rt.state.theme, id);
+            assert_eq!(rt.state.edit.text, "middle");
+            assert!(rt.state.changed_at.is_none());
+        }
+    }
+}
+
+#[test]
+fn theme_picker_supports_arrow_keys_and_activation() {
+    let (_dir, mut rt) = runtime(1000.0);
+    rt.update(|s, _| {
+        settings::open(s);
+        s.settings_tab = settings::Tab::General;
+    });
+    rt.frame(0.3);
+    click(&mut rt, "settings-theme-0");
+    rt.key(rune::KeyEvent {
+        key: rune::Key::Right,
+        mods: rune::Mods::default(),
+    });
+    rt.key(rune::KeyEvent {
+        key: rune::Key::Enter,
+        mods: rune::Mods::default(),
+    });
+    rt.frame(0.4);
+    assert_eq!(rt.state.theme, 1);
+    assert_eq!(rt.state.edit.text, "middle");
+}
+
+#[test]
+fn appearance_command_and_sidebar_cycle_all_themes() {
+    let (_dir, mut rt) = runtime(1000.0);
+    for expected in [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 0] {
+        rt.update(|s, tx| commands::dispatch(s, commands::Action::Theme, tx));
+        rt.frame(0.3);
+        assert_eq!(rt.state.theme, expected);
+    }
+    rt.update(|s, _| s.theme = 11);
+    rt.frame(0.3);
+    click(&mut rt, "theme-toggle");
+    assert_eq!(rt.state.theme, 0);
+}
+
+#[test]
 fn nearby_confirmation_ui_requires_explicit_accept_and_can_stop_discovery() {
     let (_dir, mut rt) = runtime(1200.0);
     rt.state.sync.set_enabled(true).unwrap();

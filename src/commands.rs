@@ -114,7 +114,12 @@ pub fn registry() -> Vec<Command> {
         (Checkbox, "Toggle task checkbox", None, "todo list check"),
         (Heading1, "Heading 1", None, "format title"),
         (Heading2, "Heading 2", None, "format section"),
-        (Theme, "Cycle appearance", None, "theme dark light system"),
+        (
+            Theme,
+            "Cycle appearance",
+            None,
+            "theme dark light system terminal tango solarized gruvbox dracula nord github",
+        ),
         (Refresh, "Refresh workspace", None, "reload files tree"),
         (
             Settings,
@@ -316,7 +321,7 @@ pub fn dispatch(s: &mut State, action: Action, tx: &mut Tx) {
         Redo => live::history(s, true, tx),
         Edit => live::toggle(s),
         Theme => {
-            s.theme = (s.theme + 1) % 3;
+            s.theme = crate::theme::next(s.theme);
             crate::remember(s);
         }
         Refresh => {
