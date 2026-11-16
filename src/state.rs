@@ -239,8 +239,8 @@ impl State {
             entries.sort_by_key(|e| e.file_name());
             for e in entries {
                 let ty = e.file_type()?;
-                if !ty.is_dir()
-                    && !(ty.is_file()
+                if !(ty.is_dir()
+                    || ty.is_file()
                         && e.path()
                             .extension()
                             .is_some_and(|s| s.eq_ignore_ascii_case("md")))

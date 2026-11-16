@@ -27,13 +27,13 @@
 **Files:** Modify `src/main.rs`; create `src/ui.rs` for visual composition and `src/ui_tests.rs` for layout regressions if needed.
 **Interfaces:** Consume `State`, `choose_folder`, `start_dialog`, `submit`, `report`, `remember`, `key`; produce `view(&State, &mut Cx<State>) -> El`.
 
-- [ ] Add regression tests using Rune Runtime element geometry: a short note in 1440x1000 reaches the pane's full usable width and height; content reaches within 40px of both edges; scrolling long text leaves header/footer fixed; long unbroken text does not overflow; both themes and hidden sidebar fit. These catch the existing max-width, max-height, inner viewport sizing and padding defects.
-- [ ] Run `cargo test` and confirm baseline passes and new geometry regressions fail for the expected sizing reasons.
-- [ ] Implement the continuous full-pane editor, theme, sidebar, note header, status footer and empty state. Preserve existing action keys and keyboard handling. Use one scroll viewport with inner padding and a full-width wrapping text input; retain syntax, Unicode and autosave callbacks.
-- [ ] Add behavioral tests for sidebar toggle, dialog Escape/focus restoration and status/word count changes. Observe failures before adding each behavior.
-- [ ] Run `cargo fmt --check`, `cargo test`, `cargo clippy --all-targets -- -D warnings` and `cargo build`. Expected: all pass.
-- [ ] Render actual empty, light, dark, narrow, long-note and scrolled states using Rune headless tooling with isolated XDG config. Inspect screenshots and element trees, correct visual issues, and retain representative screenshots in `docs/images/`.
-- [ ] Update README with UI behavior and verification evidence, then commit the complete tested deliverable.
+- [x] Add regression tests using Rune Runtime element geometry: a short note in 1440x1000 reaches the pane's full usable width and height; content reaches within 40px of both edges; scrolling long text leaves header/footer fixed; long unbroken text does not overflow; both themes and hidden sidebar fit. These catch the existing max-width, max-height, inner viewport sizing and padding defects.
+- [x] Run `cargo test` and confirm baseline passes and new geometry regressions fail for the expected sizing reasons.
+- [x] Implement the continuous full-pane editor, theme, sidebar, note header, status footer and empty state. Preserve existing action keys and keyboard handling. Use one scroll viewport with inner padding and a full-width wrapping text input; retain syntax, Unicode and autosave callbacks.
+- [x] Add behavioral tests for sidebar toggle, dialog Escape/focus restoration and status/word count changes. Observe failures before adding each behavior.
+- [x] Run `cargo fmt --check`, `cargo test`, `cargo clippy --all-targets -- -D warnings` and `cargo build`. Expected: all pass.
+- [x] Render actual empty, light, dark, narrow, long-note and scrolled states using Rune headless tooling with isolated XDG config. Inspect screenshots and element trees, correct visual issues, and retain representative screenshots in `docs/images/`.
+- [x] Update README with UI behavior and verification evidence, then commit the complete tested deliverable.
 
 ### Task 2: Review and PR
 **Files:** Review branch diff and docs. No new interfaces.

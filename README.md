@@ -2,6 +2,14 @@
 
 Munin is a local Markdown editor built with Rust, Rune, and RuneKit. Notes are plain `.md` files in a folder you choose. Munin does not require an account, server, or network connection to edit notes.
 
+## A quieter writing space
+
+A full-width, full-height editor with a continuous white or charcoal surface, violet accents, a compact file explorer, and a word count / save-status bar. Use the header's sidebar button (or Ctrl/Cmd+B) for distraction-free writing. New note and folder actions live beside **Notes**; rename, delete, and close are in the note header. Escape or Cancel dismisses a dialog and returns focus to your note.
+
+![Munin's light writing workspace](docs/images/workspace-light.png)
+
+[Dark appearance](docs/images/workspace-dark.png) · [Sidebar hidden](docs/images/focus.png) · [Narrow window](docs/images/workspace-narrow.png) · [Long-note scrolling](docs/images/long-note-scrolled.png) · [Welcome screen](docs/images/welcome.png)
+
 ## Run
 
 Install a recent Rust toolchain, then run:
@@ -34,7 +42,10 @@ Changes save after a short pause and before changing notes. If the file has chan
 ```sh
 cargo fmt --check
 cargo test
+cargo clippy --all-targets -- -D warnings
 cargo build
 ```
+
+Linux builds need the XKB development library (`libxkbcommon-dev` on Debian/Ubuntu). Headless UI checks and screenshot instructions are in [UI verification](docs/ui-verification.md).
 
 Rune is a pre-release framework pinned to a Git revision. Linux is the primary development and test platform; Windows and macOS builds and native behavior require verification on those platforms.

@@ -1,10 +1,15 @@
 mod fs;
 mod state;
+mod ui;
+use ui::view;
+#[cfg(test)]
+mod ui_tests;
 
-use rune::{App, AppSpec, Chord, Cx, El, KeyEvent, TextEdit, Tx, col, row, text};
-use rune_kit::{Button, FileNode, Kit, TextArea, TextInput, Tree};
+use rune::{App, AppSpec, Chord, KeyEvent, TextEdit, Tx};
 use state::State;
-use std::time::{Duration, Instant};
+use std::time::Duration;
+#[cfg(test)]
+use std::time::Instant;
 
 fn prefs_path() -> Option<std::path::PathBuf> {
     directories::ProjectDirs::from("", "", "Munin").map(|p| p.config_dir().join("state.json"))
@@ -76,8 +81,14 @@ fn choose_folder(s: &mut State, tx: &mut Tx) {
 }
 fn start_dialog(s: &mut State, mode: &'static str) {
     s.dialog = Some(mode);
+    s.edit.focused = false;
     s.input = TextEdit::new("");
     s.input.focused = true;
+}
+fn dismiss_dialog(s: &mut State) {
+    s.dialog = None;
+    s.input.focused = false;
+    s.edit.focused = s.current.is_some();
 }
 fn submit(s: &mut State) {
     let name = s.input.text.trim().to_owned();
@@ -93,212 +104,15 @@ fn submit(s: &mut State) {
         _ => Ok(()),
     };
     if r.is_ok() {
-        s.dialog = None;
+        dismiss_dialog(s);
     }
     report(s, r);
 }
-fn label(n: &FileNode<()>) -> &str {
-    &n.name
-}
-fn view(s: &State, cx: &mut Cx<State>) -> El {
-    let dark = match s.theme {
-        1 => false,
-        2 => true,
-        _ => cx.system_dark(),
-    };
-    let k = Kit::neutral(dark);
-    let mut sidebar = col()
-        .key("sidebar")
-        .w(236.0)
-        .h_full()
-        .padding(12.0)
-        .gap(8.0)
-        .fill(k.c.layer_01)
-        .child(text("MUNIN").font(k.ty.ui_medium).color(k.c.text_muted))
-        .child(
-            Button::new("Open folder")
-                .on_press_tx(|s: &mut State, tx| choose_folder(s, tx))
-                .build(&k)
-                .key("open-workspace"),
-        );
-    if s.workspace.is_some() {
-        sidebar = sidebar
-            .child(
-                row()
-                    .gap(4.0)
-                    .child(
-                        Button::new("New note")
-                            .on_press(|s: &mut State| start_dialog(s, "New note"))
-                            .build(&k)
-                            .key("new-note"),
-                    )
-                    .child(
-                        Button::new("Folder")
-                            .on_press(|s: &mut State| start_dialog(s, "New folder"))
-                            .build(&k),
-                    ),
-            )
-            .child(
-                row()
-                    .gap(4.0)
-                    .child(
-                        Button::new("Rename")
-                            .on_press(|s: &mut State| start_dialog(s, "Rename note"))
-                            .build(&k),
-                    )
-                    .child(
-                        Button::new("Delete")
-                            .on_press(|s: &mut State| start_dialog(s, "Delete note"))
-                            .build(&k),
-                    ),
-            )
-            .child(
-                Tree::new(|s: &State| &s.files, |s: &mut State| &mut s.files, label)
-                    .name("Workspace files")
-                    .on_select(|s: &mut State, id, _| {
-                        if s.files.get(id).is_some_and(|n| !n.dir) {
-                            let r = s.open_file(id);
-                            if r.is_err()
-                                && let Some(path) = &s.current
-                            {
-                                s.files.select(&state::path_id(path));
-                            }
-                            report(s, r);
-                        }
-                    })
-                    .build(s, &k)
-                    .grow(1.0)
-                    .min_h(0.0),
-            );
-    }
-    sidebar = sidebar.child(
-        Button::new(match s.theme {
-            1 => "Theme: light",
-            2 => "Theme: dark",
-            _ => "Theme: system",
-        })
-        .on_press(|s: &mut State| {
-            s.theme = (s.theme + 1) % 3;
-            remember(s);
-        })
-        .build(&k),
-    );
-    let mut pane = col()
-        .key("writing-surface")
-        .grow(1.0)
-        .h_full()
-        .padding(28.0)
-        .gap(10.0);
-    if let Some(error) = &s.error {
-        pane = pane.child(text(error.clone()).color(k.c.danger.fg));
-    }
-    if let Some(mode) = s.dialog {
-        let mut dialog = col()
-            .gap(8.0)
-            .child(text(mode).font(k.ty.ui_medium).color(k.c.text_base));
-        if mode == "Delete note" {
-            dialog = dialog.child(
-                text("Delete the current note? This cannot be undone.").color(k.c.text_muted),
-            );
-        } else {
-            dialog = dialog.child(
-                TextInput::new(&s.input)
-                    .placeholder("Name")
-                    .on_edit(|s: &mut State| &mut s.input)
-                    .on_submit(|s: &mut State, _| submit(s))
-                    .build(&k),
-            );
-        }
-        if mode == "Quick open" {
-            for path in s.find_notes(s.input.text.trim()).into_iter().take(12) {
-                let caption = path.to_string_lossy().into_owned();
-                dialog = dialog.child(
-                    Button::new(caption)
-                        .on_press(move |s: &mut State| {
-                            let r = s.open_file(&path);
-                            if r.is_ok() {
-                                s.dialog = None;
-                            }
-                            report(s, r);
-                        })
-                        .build(&k),
-                );
-            }
-        }
-        dialog = dialog.child(
-            row()
-                .gap(8.0)
-                .child(
-                    Button::new("Confirm")
-                        .on_press(|s: &mut State| submit(s))
-                        .build(&k),
-                )
-                .child(
-                    Button::new("Cancel")
-                        .on_press(|s: &mut State| s.dialog = None)
-                        .build(&k),
-                ),
-        );
-        pane = pane.child(dialog);
-    }
-    if let Some(file) = &s.current {
-        pane = pane
-            .child(
-                text(file.to_string_lossy().into_owned())
-                    .font(k.ty.ui)
-                    .color(k.c.text_muted),
-            )
-            .child(
-                TextArea::new(&s.edit)
-                    .width(None)
-                    .auto_grow(12, 40)
-                    .max_height(600.0)
-                    .decorations(rune_kit::syntax::SyntaxTheme::from_kit(&k).spans(
-                        &rune_kit::syntax::highlight(Some("markdown"), &s.edit.text),
-                        0,
-                    ))
-                    .on_edit(|s: &mut State| &mut s.edit)
-                    .on_key(|s: &mut State, ev, tx| {
-                        if ev.key == rune::Key::Enter && ev.mods == rune::Mods::default() {
-                            s.edit.key(
-                                &rune::KeyEvent {
-                                    key: rune::Key::Enter,
-                                    mods: rune::Mods {
-                                        shift: true,
-                                        ..Default::default()
-                                    },
-                                },
-                                None,
-                            );
-                            s.changed_at = Some(Instant::now());
-                            tx.wake_after(Duration::from_millis(700));
-                            true
-                        } else {
-                            false
-                        }
-                    })
-                    .on_change(|s: &mut State, tx| {
-                        s.changed_at = Some(Instant::now());
-                        tx.wake_after(Duration::from_millis(700));
-                    })
-                    .build(&k)
-                    .w_full()
-                    .max_w(760.0)
-                    .self_center()
-                    .grow(1.0),
-            );
-    } else {
-        pane = pane.child(text("Open a note to start writing").color(k.c.text_muted));
-    }
-    let mut body = row().w_full().h_full().fill(k.c.page);
-    if s.sidebar {
-        body = body.child(sidebar);
-    }
-    body.on_key(key).child(pane)
-}
 fn key(s: &mut State, ev: &KeyEvent, tx: &mut Tx) -> bool {
     let hit = |name: &str| Chord::parse(name).is_ok_and(|c| c.matches_tx(ev, tx));
-    if hit("mod+o") {
+    if ev.key == rune::Key::Escape && s.dialog.is_some() {
+        dismiss_dialog(s);
+    } else if hit("mod+o") {
         choose_folder(s, tx);
     } else if hit("mod+n") {
         start_dialog(s, "New note");
