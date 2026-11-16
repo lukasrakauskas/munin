@@ -20,7 +20,7 @@ macOS clearance follows runtime native-control insets. Tests simulate a 78px lea
 
 ## Checks and captures
 
-Current local verification: formatting, all **76 Rust tests**, strict Clippy, build and whitespace checks. Tests cover:
+Current local verification: formatting, all **101 Rust tests**, strict Clippy, build and whitespace checks. Tests cover:
 - live in-place edits, surrounding byte preservation, CRLF and Unicode;
 - nested source emphasis, tables/diagrams, malformed Mermaid fallback;
 - undo across blocks and caret restoration, IME, document selection/clipboard, block and document navigation, forward deletion and new paragraphs;
@@ -31,6 +31,24 @@ Current local verification: formatting, all **76 Rust tests**, strict Clippy, bu
 Red→green observations include missing live rendering, missing command palette/shortcuts, source separator height, undo caret restoration, document-end navigation, forward deletion at a block boundary and stale recent paths after folder rename. Author self-review only; no subagents or independent reviewer were used.
 
 Current screenshots under `docs/images/` are actual application renders: live light/dark, active paragraph/table source surrounded by rendered content, palette light/dark, file switcher, narrow layout, context menu, welcome, hidden sidebar and long-note scrolling. Rendering used Mesa software Vulkan on Linux. Hex was cloned at `/home/rake/dev/hex` for design reference; no Hex source was vendored.
+
+## Device sync verification
+
+`src/sync/store.rs` owns the Automerge workspace document, atomic document/manifest persistence, baseline branches for disk/editor edits, safety limits, note identity/tombstones, collision copies and the workspace lock. `src/sync/network.rs` runs iroh and framed Automerge sync off the UI thread, authenticates explicit endpoints before sending data, consumes ten-minute invitations once, bounds sessions and reconnects. `src/sync/mod.rs` bridges these to active buffers and workspace lifecycle. Idle scans do not rewrite metadata.
+
+Additional tests cover:
+- offline concurrent Unicode/CRLF edits, text convergence, rename/deletion and edit/delete races;
+- filename collisions, durable reload, pending/partially applied materialization after restart;
+- unsafe/foreign-platform paths, symlink parents and replacements, private metadata exclusion and writer locking;
+- unscanned disk edits, dirty-buffer merging, failed-write retry without duplicated text, retention of incoming updates across metadata errors;
+- expiring/single-use invitations, unknown/revoked endpoint rejection, real local iroh sessions and incremental bidirectional exchanges;
+- visibility/removal of a device whose pairing was admitted but whose document failed validation;
+- pause/re-enable, identity and trust persistence, workspace isolation, reselecting the current workspace, pausing despite filesystem errors, and fail-closed device removal when config writes fail;
+- settings button/shortcut/Escape, palette navigation, narrow layout and no hidden note edits.
+
+Actual Mesa-rendered captures: [dark enabled settings](images/sync-settings-dark.png), [pairing/devices](images/sync-pairing-dark.png), and [430px light settings](images/sync-settings-narrow-light.png). Captures use a disposable workspace and public device key, never a live invitation or private key.
+
+Verification is local on Linux, including two real iroh endpoints using direct loopback transport with external relays disabled in tests. Public-internet/NAT/relay interoperability and physical macOS/Windows devices were **not** exercised; no claim of native cross-platform or WAN testing is made. Author self-review only, per the no-subagents request. Explicit trust/topology, removal semantics and recovery limits are documented in README.
 
 ## Reproduce
 

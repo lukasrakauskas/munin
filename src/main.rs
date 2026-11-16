@@ -10,7 +10,11 @@ mod live;
 #[cfg(test)]
 mod live_tests;
 mod markdown;
+mod settings;
 mod state;
+mod sync;
+#[cfg(test)]
+mod sync_ui_tests;
 mod ui;
 use ui::view;
 #[cfg(test)]
@@ -79,6 +83,13 @@ fn choose_folder(s: &mut State, tx: &mut Tx) {
                     return;
                 }
                 cleanup_recovery(s);
+                if let Some(current) = s.workspace.as_ref().and_then(|p| p.canonicalize().ok())
+                    && path.canonicalize().is_ok_and(|chosen| chosen == current)
+                {
+                    let r = s.refresh();
+                    report(s, r);
+                    return;
+                }
                 let mut next = State::restore(Some(path), None);
                 next.theme = s.theme;
                 next.sidebar = s.sidebar;
@@ -153,7 +164,10 @@ fn close_note(s: &mut State) {
     }
 }
 fn key(s: &mut State, ev: &KeyEvent, tx: &mut Tx) -> bool {
-    if ev.key == rune::Key::Escape && s.dialog.is_some() {
+    if ev.key == rune::Key::Escape && s.settings && !s.launcher.open {
+        settings::close(s);
+        true
+    } else if ev.key == rune::Key::Escape && s.dialog.is_some() {
         dismiss_dialog(s);
         true
     } else {
@@ -161,13 +175,14 @@ fn key(s: &mut State, ev: &KeyEvent, tx: &mut Tx) -> bool {
     }
 }
 fn poll(s: &mut State, _: f64, tx: &mut Tx) -> bool {
+    let sync_changed = sync::poll(s, tx);
     let Some(when) = s.changed_at else {
-        return false;
+        return sync_changed;
     };
     let delay = Duration::from_millis(700);
     if when.elapsed() < delay {
         tx.wake_after(delay - when.elapsed());
-        return false;
+        return sync_changed;
     }
     s.changed_at = None;
     let r = s.save();

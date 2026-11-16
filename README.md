@@ -36,6 +36,7 @@ Mermaid renders locally without JavaScript, a browser or network service. Unsupp
 | Ctrl/Cmd+P | Command palette |
 | Ctrl/Cmd+O | Quick switcher |
 | Ctrl/Cmd+F | Find in note |
+| Ctrl/Cmd+, | Settings and device sync |
 | Ctrl/Cmd+N | New note |
 | Ctrl/Cmd+S | Save |
 | Ctrl/Cmd+W | Close note |
@@ -53,6 +54,33 @@ Native clipboard and character/word/line selection shortcuts remain available. C
 Right-click the sidebar or its entries for file/folder/workspace actions. Context actions target the clicked entry, not whichever note is active. Folder deletion is confirmation-gated and **empty-only**, including hidden non-Markdown files. The sidebar reserves native traffic-light space on macOS; hiding it moves header controls clear of the buttons, and fullscreen reclaims the space.
 
 Changes save after a pause and before switching files. Disk conflicts preserve your buffer instead of knowingly overwriting external edits. Failed saves on close attempt a local recovery copy. Workspace, current note and appearance are remembered; launcher recents are session-local. Rename actions update recent paths too.
+
+## Your notes, on your devices
+
+Open **Settings & device sync** in the sidebar, use the header gear with the sidebar hidden, or press **Ctrl/Cmd+,**. Settings includes appearance, workspace sync status, device naming, pairing and trusted-device management.
+
+![Device sync settings](docs/images/sync-settings-dark.png)
+
+1. Open a workspace on each device and choose **Enable device sync**.
+2. Choose **Create invitation** on the first device and **Copy invitation**.
+3. Privately send the code to the other device, paste it into **Have an invitation?**, and connect. Invitations expire after ten minutes and approve one device.
+4. Keep both apps open for the initial exchange. Afterwards, edit offline as usual; paired devices retry automatically when both are available.
+
+No account or hosted document service is required. **Automerge** merges concurrent text edits; **iroh** provides authenticated, end-to-end encrypted QUIC connections with direct links and relay fallback. Settings reports the last successful exchange and individual device errors—not merely whether sync was enabled. Existing notes on both devices are kept; colliding filenames get deterministic `(conflict …)` copies. Concurrent edits survive a concurrent deletion. Renames propagate when removed/added content identifies a unique match; otherwise they become delete/create operations.
+
+[Pairing and trusted devices](docs/images/sync-pairing-dark.png) · [Narrow light settings](docs/images/sync-settings-narrow-light.png)
+
+### Privacy, trust and recovery
+
+- Sync is **opt-in per workspace**. Pause stops its network worker without removing notes, device trust or merge history. Even filesystem errors do not prevent pausing.
+- Pairing grants access to the **whole selected Markdown workspace**, including retained CRDT history. Treat invitation codes as secrets.
+- Trust is explicit, not transitive. Pair the devices that should exchange directly. A connected intermediate device can carry merged history, but if it is offline, devices without a pairing cannot talk directly.
+- **Remove** revokes that endpoint's access on this device and closes existing sessions. It does not erase copies already received or revoke access through other trusted devices; remove a lost device everywhere.
+- iroh's default public relays and address discovery can observe connection metadata. Relays cannot read note contents. Notes, private keys and CRDT history are **not encrypted at rest**.
+- Private local state lives in `.munin-sync/`, excluded from the browser and sync. **Never copy that directory to a different device**; pair it instead. On Unix the directory is owner-only and newly created metadata files are private. Only one Munin process can sync a given workspace.
+- This is sync, **not a backup**: deletions propagate and history can include deleted text. Back up your workspace separately. If metadata is damaged, pause sync, close Munin and back up the Markdown files **and** `.munin-sync` before repairing/restoring it. Resetting metadata creates a new identity/history and requires re-pairing; do not reset one peer casually.
+- Markdown only: attachments, empty folders, symlinks and nonportable paths are not synced. Limits: 8 MiB per note, 32 MiB total note text / saved sync history, 10,000 note records including tombstones, and 64 approved devices. Over-limit or unsafe inputs show errors rather than being silently skipped.
+- Incoming changes preserve buffered edits, but reset the current note's stale undo history when its source changes remotely. Both apps must run at overlapping times; sync does not continue after closing Munin.
 
 ## Run and develop
 

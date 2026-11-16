@@ -11,3 +11,10 @@ tempfile = "3"
 rune = { git = "https://github.com/anomalyco/rune", rev = "ba5e7c8069a24c36f95ca90a3058083cd468fcd1", features = ["native-file-dialog"] }
 rune-kit = { git = "https://github.com/anomalyco/rune", rev = "ba5e7c8069a24c36f95ca90a3058083cd468fcd1", features = ["mermaid"] }
 pulldown-cmark = { version = "0.13", default-features = false }
+automerge = "0.12"
+iroh = "1.4"
+tokio = { version = "1", features = ["rt-multi-thread", "sync", "time", "macros", "io-util"] }
+base64 = "0.22"
+uuid = { version = "1", features = ["v4"] }
+fs2 = "0.4"
+constant_time_eq = "0.4"

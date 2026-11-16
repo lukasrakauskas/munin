@@ -46,6 +46,8 @@ pub fn open(s: &mut State, scope: Scope) {
     s.dialog = None;
     s.dialog_target = None;
     s.input.focused = false;
+    s.sync.name_input.focused = false;
+    s.sync.pair_input.focused = false;
     let files = s.find_notes("");
     let mut query = TextEdit::new("");
     query.focused = true;
@@ -61,7 +63,9 @@ pub fn close(s: &mut State) {
     s.launcher.open = false;
     s.launcher.query.focused = false;
     s.launcher.query.cancel_composition();
-    live::focus(s);
+    if !s.settings {
+        live::focus(s);
+    }
 }
 fn fuzzy(query: &str, value: &str) -> Option<i32> {
     let needle: Vec<char> = query

@@ -240,6 +240,13 @@ fn sidebar(s: &State, k: &Kit, controls_height: f32) -> El {
                 .key("theme-toggle"),
             )
             .child(
+                Button::new("Settings & device sync")
+                    .variant(ButtonVariant::GhostMuted)
+                    .on_press(super::settings::open)
+                    .build(k)
+                    .key("open-settings"),
+            )
+            .child(
                 row()
                     .gap(6.0)
                     .center_y()
@@ -289,6 +296,14 @@ fn header(s: &State, k: &Kit, leading: f32, trailing: f32) -> El {
                 .truncate()
                 .help(title),
         );
+    if !s.sidebar {
+        header = header.child(
+            action(&super::settings::GEAR, "Settings · Ctrl/Cmd+,")
+                .on_press(super::settings::open)
+                .build(k)
+                .key("open-settings"),
+        );
+    }
     header = header.child(
         action(&glyphs::SEARCH, "Files and actions · Ctrl/Cmd+K")
             .on_press(|s: &mut State| super::launcher::open(s, super::launcher::Scope::All))
@@ -630,6 +645,17 @@ pub(super) fn view(s: &State, cx: &mut Cx<State>) -> El {
     let k = kit(dark);
     let chrome = cx.chrome_insets();
     let leading = cx.titlebar_inset().max(chrome.leading);
+    if s.settings {
+        return super::launcher::mount(
+            s,
+            &k,
+            rune_kit::root(
+                super::settings::view(s, &k, leading, chrome.trailing),
+                Vec::new(),
+            )
+            .on_key(key),
+        );
+    }
     let controls_height = if leading > 0.0 {
         chrome.height.max(40.0)
     } else {
