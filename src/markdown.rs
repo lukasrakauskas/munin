@@ -1,6 +1,6 @@
 //! Lossless source typography and native Markdown / Mermaid reading view.
-use rune::{El, Span, TextStyle};
-use rune_kit::{Kit, Markdown, MarkdownStyle};
+use rune::{El, Span, TextStyle, col, row, text};
+use rune_kit::{Button, ButtonVariant, Kit, Markdown, MarkdownStyle, glyphs};
 
 pub fn reading(source: &str, k: &Kit, width: f32) -> El {
     let style = MarkdownStyle::from_kit(k)
@@ -13,7 +13,11 @@ pub fn reading(source: &str, k: &Kit, width: f32) -> El {
         .table_full_width(true)
         .diagram_max_width(width.max(1.0))
         .diagram(k.c.layer_01, k.c.border_focus, k.c.text_accent);
+    let code_kit = k.clone();
     Markdown::new(source)
+        .code_frame(move |card, frame| {
+            code_frame(card, frame.source, frame.language, frame.index, &code_kit)
+        })
         .style(style)
         .scroll_wide(true)
         .tasks_read_only()
@@ -31,6 +35,40 @@ pub fn reading(source: &str, k: &Kit, width: f32) -> El {
         .key("rendered-note")
         .w_full()
         .min_w(0.0)
+}
+
+fn code_frame(card: El, source: &str, language: Option<&str>, index: usize, k: &Kit) -> El {
+    let source = source.to_owned();
+    col()
+        .w_full()
+        .min_w(0.0)
+        .child(
+            row()
+                .w_full()
+                .min_w(0.0)
+                .px(8.0)
+                .py(4.0)
+                .gap(8.0)
+                .center_y()
+                .child(
+                    text(language.unwrap_or("Code").to_owned())
+                        .grow(1.0)
+                        .min_w(0.0)
+                        .truncate()
+                        .font(k.ty.small)
+                        .color(k.c.text_muted),
+                )
+                .child(
+                    Button::new("Copy")
+                        .icon(&glyphs::COPY)
+                        .help("Copy code to clipboard")
+                        .variant(ButtonVariant::GhostMuted)
+                        .on_press_tx(move |_: &mut crate::state::State, tx| tx.copy(source.clone()))
+                        .build(k)
+                        .key(format!("copy-code-{index}")),
+                ),
+        )
+        .child(card)
 }
 
 pub fn source_spans(source: &str, k: &Kit) -> Vec<Span> {

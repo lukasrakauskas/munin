@@ -32,6 +32,7 @@ pub enum Action {
     Edit,
     Theme,
     Refresh,
+    Settings,
 }
 pub struct Command {
     pub action: Action,
@@ -42,7 +43,8 @@ pub struct Command {
 impl Command {
     pub fn enabled(&self, s: &State) -> bool {
         match self.action {
-            Action::Workspace
+            Action::Settings
+            | Action::Workspace
             | Action::Files
             | Action::Commands
             | Action::Sidebar
@@ -114,6 +116,12 @@ pub fn registry() -> Vec<Command> {
         (Heading2, "Heading 2", None, "format section"),
         (Theme, "Cycle appearance", None, "theme dark light system"),
         (Refresh, "Refresh workspace", None, "reload files tree"),
+        (
+            Settings,
+            "Settings",
+            Some("mod+,"),
+            "sync devices pairing appearance preferences",
+        ),
     ]
     .into_iter()
     .map(|(action, title, shortcut, keywords)| Command {
@@ -149,6 +157,9 @@ pub fn hint(shortcut: &str) -> String {
 }
 pub fn shortcut(s: &mut State, ev: &KeyEvent, tx: &mut Tx) -> bool {
     let hit = |chord: &str| Chord::parse(chord).is_ok_and(|c| c.matches_tx(ev, tx));
+    if s.settings && !hit("mod+,") && !hit("mod+k") && !hit("mod+p") {
+        return false;
+    }
     if hit("mod+k") {
         launcher::open(s, Scope::All);
         return true;
@@ -232,7 +243,16 @@ fn line(doc: &rune::TextEdit) -> (usize, usize) {
 }
 pub fn dispatch(s: &mut State, action: Action, tx: &mut Tx) {
     use Action::*;
+    if s.settings
+        && !matches!(
+            action,
+            Settings | Theme | Workspace | Files | Commands | Sidebar | Refresh
+        )
+    {
+        crate::settings::close(s);
+    }
     match action {
+        Settings => crate::settings::open(s),
         NewNote => crate::start_dialog(s, "New note"),
         NewFolder => crate::start_dialog(s, "New folder"),
         Save => {

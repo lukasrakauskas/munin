@@ -5,6 +5,9 @@ pub fn scan_workspace(root: &Path) -> io::Result<Vec<PathBuf>> {
     fn walk(root: &Path, relative: &Path, out: &mut Vec<PathBuf>) -> io::Result<()> {
         for entry in std::fs::read_dir(root.join(relative))? {
             let entry = entry?;
+            if entry.file_name() == crate::sync::store::META {
+                continue;
+            }
             let kind = entry.file_type()?;
             let path = relative.join(entry.file_name());
             if kind.is_dir() {

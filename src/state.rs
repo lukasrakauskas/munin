@@ -40,6 +40,9 @@ pub struct State {
     pub input: TextEdit,
     pub changed_at: Option<std::time::Instant>,
     pub recovered: bool,
+    pub settings: bool,
+    pub settings_tab: crate::settings::Tab,
+    pub sync: crate::sync::Sync,
 }
 
 #[derive(Default, serde::Serialize, serde::Deserialize)]
@@ -149,6 +152,7 @@ impl State {
     }
     pub fn restore(workspace: Option<PathBuf>, file: Option<PathBuf>) -> Self {
         let workspace = workspace.filter(|p| p.is_dir());
+        let sync = crate::sync::Sync::load(workspace.as_deref());
         let mut s = Self {
             workspace,
             current: None,
@@ -169,6 +173,9 @@ impl State {
             input: TextEdit::new(""),
             changed_at: None,
             recovered: false,
+            settings: false,
+            settings_tab: crate::settings::Tab::default(),
+            sync,
         };
         let _ = s.refresh();
         if let Some(file) = file {
@@ -367,6 +374,9 @@ impl State {
                 std::fs::read_dir(root.join(rel))?.collect::<io::Result<_>>()?;
             entries.sort_by_key(|e| e.file_name());
             for e in entries {
+                if e.file_name() == crate::sync::store::META {
+                    continue;
+                }
                 let ty = e.file_type()?;
                 if !(ty.is_dir()
                     || ty.is_file()
@@ -413,6 +423,9 @@ impl State {
         self.files.select(&path_id(path));
     }
     pub fn save(&mut self) -> io::Result<()> {
+        if self.sync.enabled() {
+            return crate::sync::flush(self);
+        }
         let Some(path) = self
             .current
             .as_ref()
@@ -470,10 +483,12 @@ impl State {
         self.live = crate::live::LiveEditor::default();
         self.saved = text;
         self.current = Some(path.to_path_buf());
+        self.settings = false;
         self.recents.retain(|p| p != path);
         self.recents.insert(0, path.to_path_buf());
         self.recents.truncate(32);
         self.select_active(path);
+        crate::sync::capture(self);
         Ok(())
     }
 }
