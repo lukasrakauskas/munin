@@ -1,3 +1,6 @@
+mod context;
+#[cfg(test)]
+mod entry_tests;
 mod fs;
 mod markdown;
 mod state;
@@ -82,6 +85,8 @@ fn choose_folder(s: &mut State, tx: &mut Tx) {
 }
 fn start_dialog(s: &mut State, mode: &'static str) {
     s.dialog = Some(mode);
+    s.dialog_target = None;
+    s.context = None;
     s.edit.focused = false;
     s.input = TextEdit::new("");
     s.input.focused = true;
@@ -92,14 +97,29 @@ fn toggle_reading(s: &mut State) {
 }
 fn dismiss_dialog(s: &mut State) {
     s.dialog = None;
+    s.dialog_target = None;
     s.input.focused = false;
     s.edit.focused = !s.reading && s.current.is_some();
 }
 fn submit(s: &mut State) {
     let name = s.input.text.trim().to_owned();
+    let contextual_name = s
+        .dialog_target
+        .as_deref()
+        .unwrap_or_else(|| std::path::Path::new(""))
+        .join(&name);
+    let target = s.dialog_target.clone();
     let r = match s.dialog {
-        Some("New note") => s.create_note(&name),
-        Some("New folder") => s.create_folder(&name),
+        Some("New note") => s.create_note(&contextual_name.to_string_lossy()),
+        Some("New folder") => s.create_folder(&contextual_name.to_string_lossy()),
+        Some("Rename entry") => target
+            .as_deref()
+            .ok_or_else(|| std::io::Error::other("No entry selected"))
+            .and_then(|p| s.rename_entry(p, &name)),
+        Some("Delete entry") => target
+            .as_deref()
+            .ok_or_else(|| std::io::Error::other("No entry selected"))
+            .and_then(|p| s.delete_entry(p)),
         Some("Rename note") => s.rename_current(&name),
         Some("Delete note") => s.delete_current(),
         Some("Quick open") => match s.find_notes(&name).first() {

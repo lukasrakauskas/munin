@@ -14,6 +14,12 @@ use std::{
     path::{Path, PathBuf},
 };
 
+#[derive(Clone)]
+pub struct Context {
+    pub point: rune::PointerPress,
+    pub target: Option<PathBuf>,
+}
+
 pub struct State {
     pub workspace: Option<PathBuf>,
     pub current: Option<PathBuf>,
@@ -25,6 +31,8 @@ pub struct State {
     pub reading: bool,
     pub theme: u8,
     pub dialog: Option<&'static str>,
+    pub dialog_target: Option<PathBuf>,
+    pub context: Option<Context>,
     pub input: TextEdit,
     pub changed_at: Option<std::time::Instant>,
     pub recovered: bool,
@@ -147,6 +155,8 @@ impl State {
             reading: false,
             theme: 0,
             dialog: None,
+            dialog_target: None,
+            context: None,
             input: TextEdit::new(""),
             changed_at: None,
             recovered: false,
@@ -198,6 +208,97 @@ impl State {
     pub fn create_folder(&mut self, name: &str) -> io::Result<()> {
         let rel = self.destination(name, false)?;
         std::fs::create_dir(self.workspace.as_ref().unwrap().join(rel))?;
+        self.refresh()
+    }
+    fn checked_entry(&self, entry: &Path) -> io::Result<PathBuf> {
+        if entry.as_os_str().is_empty()
+            || !entry
+                .components()
+                .all(|c| matches!(c, std::path::Component::Normal(_)))
+        {
+            return Err(io::Error::other("Invalid entry path"));
+        }
+        let root = self
+            .workspace
+            .as_ref()
+            .ok_or_else(|| io::Error::other("No workspace"))?;
+        let mut full = root.clone();
+        for component in entry.components() {
+            full.push(component);
+            if std::fs::symlink_metadata(&full)?.file_type().is_symlink() {
+                return Err(io::Error::other("Symlink entries cannot be modified"));
+            }
+        }
+        if !full.canonicalize()?.starts_with(root.canonicalize()?) {
+            return Err(io::Error::other("Path outside workspace"));
+        }
+        if !full.is_dir()
+            && !entry
+                .extension()
+                .is_some_and(|e| e.eq_ignore_ascii_case("md"))
+        {
+            return Err(io::Error::other("Only Markdown entries can be modified"));
+        }
+        Ok(full)
+    }
+    pub fn rename_entry(&mut self, entry: &Path, name: &str) -> io::Result<()> {
+        let source = self.checked_entry(entry)?;
+        if name.is_empty()
+            || Path::new(name).components().count() != 1
+            || !Path::new(name)
+                .components()
+                .all(|c| matches!(c, std::path::Component::Normal(_)))
+        {
+            return Err(io::Error::other("Enter a name, not a path"));
+        }
+        let folder = source.is_dir();
+        let destination = entry.parent().unwrap().join(name);
+        let relative = self.destination(&destination.to_string_lossy(), !folder)?;
+        if relative == entry {
+            return Ok(());
+        }
+        let affected = self
+            .current
+            .as_ref()
+            .and_then(|p| p.strip_prefix(entry).ok())
+            .map(Path::to_path_buf);
+        if affected.is_some() {
+            self.save()?;
+        }
+        let target = self.workspace.as_ref().unwrap().join(&relative);
+        if std::fs::symlink_metadata(&target).is_ok() {
+            return Err(io::Error::other("An entry with that name already exists"));
+        }
+        if folder {
+            std::fs::rename(&source, &target)?;
+        } else {
+            // Hard-link then unlink rather than rename: never overwrite another note.
+            std::fs::hard_link(&source, &target)?;
+            if let Err(e) = std::fs::remove_file(&source) {
+                let _ = std::fs::remove_file(&target);
+                return Err(e);
+            }
+        }
+        if let Some(suffix) = affected {
+            self.current = Some(if suffix.as_os_str().is_empty() {
+                relative
+            } else {
+                relative.join(suffix)
+            });
+        }
+        self.refresh()
+    }
+    pub fn delete_entry(&mut self, entry: &Path) -> io::Result<()> {
+        let full = self.checked_entry(entry)?;
+        if self.current.as_deref() == Some(entry) {
+            return self.delete_current();
+        }
+        if full.is_dir() {
+            // Never recursively remove a folder, including non-Markdown files hidden by the tree.
+            std::fs::remove_dir(full)?;
+        } else {
+            std::fs::remove_file(full)?;
+        }
         self.refresh()
     }
     pub fn rename_current(&mut self, name: &str) -> io::Result<()> {

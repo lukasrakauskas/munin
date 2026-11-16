@@ -77,6 +77,103 @@ fn reading_uses_unsaved_buffer_and_falls_back_for_unsupported_mermaid() {
     assert_eq!(rt.state.saved, "saved");
 }
 
+fn right_click(rt: &mut Runtime<State>, key: &str) {
+    let (x, y) = rt.find(key).unwrap();
+    rt.secondary_down(x, y);
+    rt.secondary_up(x, y);
+    rt.frame(0.0);
+    rt.frame(1.0);
+}
+
+fn click_label(rt: &mut Runtime<State>, label: &str) {
+    let r = rt
+        .elements()
+        .into_iter()
+        .find(|e| e.label.as_deref() == Some(label) && e.role == "menuitem")
+        .expect("menu item")
+        .rect;
+    rt.pointer_down(r[0] + r[2] / 2.0, r[1] + r[3] / 2.0);
+    rt.pointer_up(r[0] + r[2] / 2.0, r[1] + r[3] / 2.0);
+    rt.frame(0.0);
+    rt.frame(1.0);
+}
+
+#[test]
+fn context_rename_targets_inactive_note_without_switching_the_buffer() {
+    let (dir, mut rt) = note_runtime("active", (1000.0, 700.0), false);
+    std::fs::write(dir.path().join("other.md"), "other").unwrap();
+    rt.update(|s, _| {
+        s.edit.text = "dirty active".into();
+        s.refresh().unwrap();
+    });
+    rt.frame(0.0);
+    right_click(&mut rt, "other.md");
+    assert!(rt.elements().iter().any(|e| e.role == "menu"));
+    assert_eq!(rt.state.edit.text, "dirty active");
+    assert_eq!(
+        rt.state.current.as_deref(),
+        Some(std::path::Path::new("note.md"))
+    );
+    click_label(&mut rt, "Rename…");
+    rt.update(|s, _| s.input = TextEdit::new("renamed"));
+    rt.frame(0.0);
+    click(&mut rt, "confirm-dialog");
+    assert_eq!(
+        std::fs::read_to_string(dir.path().join("renamed.md")).unwrap(),
+        "other"
+    );
+    assert!(!dir.path().join("other.md").exists());
+    assert_eq!(rt.state.edit.text, "dirty active");
+    assert_eq!(
+        rt.state.current.as_deref(),
+        Some(std::path::Path::new("note.md"))
+    );
+}
+
+#[test]
+fn folder_context_creates_children_and_refuses_recursive_delete() {
+    let (dir, mut rt) = note_runtime("note", (1000.0, 700.0), false);
+    std::fs::create_dir(dir.path().join("folder")).unwrap();
+    rt.update(|s, _| s.refresh().unwrap());
+    rt.frame(0.0);
+    right_click(&mut rt, "folder");
+    click_label(&mut rt, "New note…");
+    rt.update(|s, _| s.input = TextEdit::new("child"));
+    rt.frame(0.0);
+    click(&mut rt, "confirm-dialog");
+    assert!(dir.path().join("folder/child.md").exists());
+    right_click(&mut rt, "folder");
+    click_label(&mut rt, "Delete…");
+    assert!(
+        dir.path().join("folder/child.md").exists(),
+        "delete requires confirmation"
+    );
+    click(&mut rt, "confirm-dialog");
+    assert!(rt.state.error.is_some());
+    assert!(dir.path().join("folder/child.md").exists());
+}
+
+#[test]
+fn background_context_has_workspace_actions_and_escape_dismisses() {
+    let (_dir, mut rt) = note_runtime("note", (1000.0, 700.0), false);
+    let side = element(&rt, "sidebar").rect;
+    rt.secondary_down(side[0] + 20.0, 500.0);
+    rt.secondary_up(side[0] + 20.0, 500.0);
+    rt.frame(0.0);
+    rt.frame(1.0);
+    assert!(
+        rt.elements()
+            .iter()
+            .any(|e| e.label.as_deref() == Some("Refresh workspace"))
+    );
+    rt.key(rune::KeyEvent {
+        key: rune::Key::Escape,
+        mods: Default::default(),
+    });
+    rt.frame(0.0);
+    assert!(!rt.elements().iter().any(|e| e.role == "menu" && !e.exiting));
+}
+
 #[test]
 fn short_note_uses_full_pane_width_and_height() {
     for dark in [false, true] {

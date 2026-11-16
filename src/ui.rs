@@ -3,7 +3,7 @@ use super::{choose_folder, key, remember, report, start_dialog, state::State, su
 use rune::{Color, Cx, El, Icon, ScrollSpec, TextStyle, col, el, icon, row, text, text_input};
 use rune_kit::{
     Button, ButtonVariant, ControlSize, FileNode, IconButton, IconButtonVariant, Kit, TextInput,
-    Tree, TreeItem, TreeStyle, glyphs,
+    Tree, TreeStyle, glyphs,
 };
 use std::time::{Duration, Instant};
 
@@ -61,6 +61,7 @@ fn sidebar(s: &State, k: &Kit) -> El {
         .unwrap_or_else(|| "Your workspace".into());
     let mut side = col()
         .key("sidebar")
+        .on_secondary_press(|s: &mut State, point, _| super::context::open(s, point, None))
         .w(248.0)
         .h_full()
         .min_h(0.0)
@@ -169,7 +170,7 @@ fn sidebar(s: &State, k: &Kit) -> El {
                 col().px(10.0).grow(1.0).min_h(0.0).child(
                     Tree::new(|s: &State| &s.files, |s: &mut State| &mut s.files, label)
                         .name("Workspace files")
-                        .row(TreeItem::file)
+                        .row(super::context::tree_item)
                         .style(tree_style)
                         .on_select(|s: &mut State, id, _| {
                             if s.files.get(id).is_some_and(|n| !n.dir) {
@@ -500,13 +501,23 @@ fn dialog(s: &State, mode: &str, k: &Kit) -> El {
         .fill(k.c.layer_01)
         .border_sides([0.0, 0.0, 1.0, 0.0], k.c.border_muted)
         .child(text(mode).font(k.ty.body_medium).color(k.c.text_base));
-    if mode == "Delete note" {
+    if mode.starts_with("Delete ") {
         d = d.child(
-            text("Delete the current note? This cannot be undone.")
-                .w_full()
-                .wrap()
-                .font(k.ty.ui)
-                .color(k.c.text_muted),
+            text(if mode == "Delete entry" {
+                format!(
+                    "Delete {}? Only empty folders can be deleted. This cannot be undone.",
+                    s.dialog_target
+                        .as_deref()
+                        .unwrap_or_else(|| std::path::Path::new(""))
+                        .display()
+                )
+            } else {
+                "Delete the current note? This cannot be undone.".into()
+            })
+            .w_full()
+            .wrap()
+            .font(k.ty.ui)
+            .color(k.c.text_muted),
         );
     } else {
         d = d.child(
@@ -567,14 +578,14 @@ fn dialog(s: &State, mode: &str, k: &Kit) -> El {
         row()
             .gap(8.0)
             .child(
-                Button::new(if mode == "Delete note" {
+                Button::new(if mode.starts_with("Delete ") {
                     "Delete note"
                 } else if mode == "Quick open" {
                     "Open note"
                 } else {
                     "Confirm"
                 })
-                .variant(if mode == "Delete note" {
+                .variant(if mode.starts_with("Delete ") {
                     ButtonVariant::Danger
                 } else {
                     ButtonVariant::Neutral
@@ -660,5 +671,5 @@ pub(super) fn view(s: &State, cx: &mut Cx<State>) -> El {
     if s.sidebar {
         body = body.child(sidebar(s, &k));
     }
-    body.on_key(key).child(pane)
+    super::context::menu(s, &k, body.on_key(key).child(pane))
 }
