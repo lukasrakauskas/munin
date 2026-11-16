@@ -22,4 +22,5 @@ flowchart LR
 
 - Your files stay local
 - Plain Markdown, beautifully presented
-- Switch back to writing with `Ctrl+E`
+- Click any block to edit in place
+- Jump to notes and actions with `Ctrl+K`

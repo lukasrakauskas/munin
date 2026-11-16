@@ -1,62 +1,54 @@
 # UI verification
 
-## What changed
+## Current architecture
 
-The old form textarea combined a centered 760px maximum width, 600px maximum height, and a separate auto-grow child. At a 1440×1000 window the old inner text was only 744px wide in a 1204px pane. The new view uses one flexible, bounded scroll viewport, a full-width wrapping native Rune text field, and 28px text gutters inside the scroll content. Short notes accept focus anywhere on the writing surface; long notes keep their caret and final line reachable while the header and footer stay fixed. The light-mode viewport and pane use the same opaque white fill.
+Munin uses the pinned Rune/RuneKit stack with native Markdown/Mermaid rendering. There is one editor viewport with continuous light/dark background and aligned inner gutters. No separate Write/Read toolbar remains.
 
-Hex was inspected locally at `/home/rake/dev/hex`, revision `5f01839ea8dc328393dab2b34ce5eaf7021e4a80`: its `docs/images/output.png`, `src/rune_ui/sidebar.rs`, and `src/rune_ui/controls.rs` informed navigation hierarchy, restrained separators, and aligned gutters. No Hex source or new dependency was copied into Munin.
+`src/live.rs` partitions the source into top-level block ranges using pulldown-cmark. Inactive blocks render normally; the active block edits its exact source in place. Separator newlines stay in a byte-preserving suffix rather than expanding the native input's visual height. Changes patch the canonical `State.edit` with a grouped undo step. Source is never reserialized. A pre-edit binding read captures the correct caret for undo; post-edit reads do not overwrite that snapshot. CRLF, Unicode, tables, fences and IME are covered by tests.
 
-## Rendered notes and context menus
+Whole-document selection uses the same viewport with a native source input, not another pane. Escape returns to live rendering. This provides native document-wide copy/cut/paste and selection without pretending the block renderer is CodeMirror. Active blocks expose their Markdown, including table and diagram source; this is block-level live preview, not complete Obsidian feature parity.
 
-The follow-up adds source-offset typography (nested emphasis and headings remain editable Markdown), plus an explicit native Reading view for tables, lists, quotes, code and Mermaid. The buffer is never converted to another document format. New notes always enter Write mode with focus. Rendering uses the pinned RuneKit Markdown/Mermaid features and the same pulldown-cmark 0.13 parser for source ranges; no webview or remote diagram service is involved. Unsupported Mermaid remains visible as code. Remote images are not automatically fetched; external link actions accept HTTP(S) and mailto only.
+`src/commands.rs` is the shared action registry and shortcut dispatcher. `src/launcher.rs` uses RuneKit Dialog/TextInput and styled listbox primitives. RuneKit's Palette module contains theme colors, not a command palette; its Combobox was inspected too, but its anchored select interaction is not the centered file/action launcher needed here. Files are snapshotted when opening the launcher; queries do not rescan the filesystem. Recents are session-local and update on renames.
 
-Context menus target the clicked path separately from the active note. Folder creation uses that folder, note creation from a file uses its parent, renaming an ancestor updates the active note path, and deletion requires confirmation. Folder removal is nonrecursive and refuses nonempty directories, even when their only children are hidden non-Markdown files. Entry mutations reject traversal, symlinks and collisions; active-note operations retain disk-conflict protection. Copying paths and closing menus leave the buffer untouched.
+Bindings follow Obsidian's official [Editing shortcuts](https://github.com/obsidianmd/obsidian-help/blob/master/en/Editing%20and%20formatting/Editing%20shortcuts.md), [Command palette](https://github.com/obsidianmd/obsidian-help/blob/master/en/Plugins/Command%20palette.md), and [Quick switcher](https://github.com/obsidianmd/obsidian-help/blob/master/en/Plugins/Quick%20switcher.md) docs: Mod+O files, Mod+P commands, Mod+B/I formatting and native edit/history keys. Mod+K deliberately opens the combined launcher per the user's request, replacing Obsidian's link binding. Sidebar toggling moved off bold to Mod+Backslash. Only implemented actions are advertised.
 
-macOS clearance is based on the runtime's native-control insets, not a permanently hardcoded top margin. Synthetic Runtime tests report a 78px leading inset / 40px band, verify sidebar brand clearance, hidden-sidebar header clearance and fullscreen space reclamation; trailing caption-button clearance is also covered. These are cross-platform layout tests, not native AppKit verification.
+## Safety
 
-Actual `reading-light.png`, `reading-dark.png`, `reading-narrow.png` and `sidebar-context.png` renders include typography, table cells and a native Mermaid flowchart. Narrow-pane diagram label clipping was reproduced by a failing test and fixed by measuring the available content width before diagram/table layout.
+Context-menu targets are separate from the active buffer. Entry operations retain canonical containment, symlink/traversal/collision refusals and active-file conflict protection. Folder deletion is nonrecursive and refuses nonempty directories, including hidden non-Markdown children. Palette open failures retain the dirty buffer and show the error without dismissing the palette. Query typing does not change the note. Remote images are not fetched automatically; external link actions accept HTTP(S)/mailto only. Unsupported Mermaid remains source.
 
-## Automated coverage
+macOS clearance follows runtime native-control insets. Tests simulate a 78px leading inset / 40px band with the sidebar shown/hidden, fullscreen transitions, and trailing caption clearance. These are layout simulations, **not native AppKit verification**. Native macOS/Windows builds were not run on this Linux host.
 
-`cargo test` includes native Rune Runtime layout and input tests for:
-- large-window width and lower-surface click-to-focus in both appearances;
-- long-token wrapping and viewport/footer alignment at 1440×1000 and 720×520;
-- long-note scrolling with fixed chrome and typing at the end with a visible caret;
-- visual sidebar toggling, narrow-window actions, long filenames, and live resizing;
-- equal file-tree gutters and wrapped welcome-screen copy;
-- quick-open result truncation for long paths;
-- Escape / Cancel focus restoration and safe cancellation of deletion;
-- live word counts and unsaved status, alongside existing Unicode, undo, clipboard, autosave and filesystem safety tests;
-- rendered headings, tables, Mermaid, unsaved-buffer rendering and unsupported-diagram fallback;
-- Unicode/nested source emphasis and literal fenced code;
-- inactive-entry targeting, nested creation, ancestor rename, empty-only deletion, traversal/symlink/collision/conflict refusal, path copying and outside/Escape menu dismissal;
-- simulated native-control overlays, fullscreen space reclamation, narrow-diagram labels, aligned table cells and focused new notes from Reading mode.
+## Checks and captures
 
-The width, Escape, tree-gutter, welcome wrapping and quick-open overflow tests were observed failing before their respective fixes. Additional edge tests characterize the preserved behavior. A boolean-expression simplification in `State::refresh` is behavior-equivalent and removes a pre-existing Rust 1.96 Clippy warning.
+Current local verification: formatting, all **76 Rust tests**, strict Clippy, build and whitespace checks. Tests cover:
+- live in-place edits, surrounding byte preservation, CRLF and Unicode;
+- nested source emphasis, tables/diagrams, malformed Mermaid fallback;
+- undo across blocks and caret restoration, IME, document selection/clipboard, block and document navigation, forward deletion and new paragraphs;
+- fuzzy file/action lookup, action execution, arrows/Enter, mouse choice, Escape/outside dismissal, focus restoration, empty/disabled results, cached file snapshots and narrow bounds;
+- formatting shortcuts, current-note search, line deletion, recent-path renames, conflict-safe file opening;
+- prior autosave, recovery, filesystem safety, Unicode clipboard/undo, full-height/width and native-inset regressions.
 
-## Actual renders
+Red→green observations include missing live rendering, missing command palette/shortcuts, source separator height, undo caret restoration, document-end navigation, forward deletion at a block boundary and stale recent paths after folder rename. Author self-review only; no subagents or independent reviewer were used.
 
-Local verification passed: `cargo fmt --check`, all 55 tests, `cargo clippy --all-targets -- -D warnings`, `cargo build`, and `git diff --check`. The branch received an author self-review; no subagents or independent reviewer were used.
+Current screenshots under `docs/images/` are actual application renders: live light/dark, active paragraph/table source surrounded by rendered content, palette light/dark, file switcher, narrow layout, context menu, welcome, hidden sidebar and long-note scrolling. Rendering used Mesa software Vulkan on Linux. Hex was cloned at `/home/rake/dev/hex` for design reference; no Hex source was vendored.
 
-A sample note is available at [`examples/rendered-note.md`](examples/rendered-note.md). Open its containing folder as a workspace and use **Read** or Ctrl/Cmd+E. The committed Reading captures use that content.
-
-The PNGs under `docs/images/` were rendered by the application, not mockups. Checked light/dark at 1200×900, a 640×650 light workspace, the empty welcome screen, sidebar-hidden dark mode, and the bottom of a long note. Rune's headless renderer used Mesa software Vulkan on Linux. No native macOS/Windows checks were performed.
-
-Build and render a workspace using an isolated configuration (Linux):
+## Reproduce
 
 ```sh
 cargo build
-# Place a state.json in $XDG_CONFIG_HOME/munin containing:
-# {"workspace":"/absolute/path/to/notes","file":"Welcome.md","theme":0}
-XDG_CONFIG_HOME=/tmp/munin-ui-check \
-  target/debug/munin --snap /tmp/munin.png --tree /tmp/munin.json \
-  --theme light --size 1200x800 --scale 1
+# Place state.json under /tmp/munin-ui-check/munin, for example:
+# {"workspace":"/absolute/path/to/notes","file":"rendered-note.md","theme":0}
+XDG_CONFIG_HOME=/tmp/munin-ui-check target/debug/munin \
+  --snap /tmp/munin.png --tree /tmp/munin.json \
+  --theme light --size 1200x900 --scale 1
 ```
 
-Optional software GPU override: `VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.json` (path varies by distribution). For a bottom-of-document capture, use `--script scroll.json --at 0.2` with:
+Use [`examples/rendered-note.md`](examples/rendered-note.md) as a fixture. To open the palette in a Linux headless script:
 
 ```json
-{"events":[{"t":0.1,"type":"wheel","key":"editor-scroll","dx":0,"dy":-50000}]}
+{"events":[{"t":0.1,"type":"key","name":"k","cmd":true,"ctrl":true},{"t":0.2,"type":"type","text":"note"}]}
 ```
 
-This machine has the XKB runtime library but not its development symlink. Verification used a temporary `/tmp/munin-native-libs/libxkbcommon.so` symlink to the installed `libxkbcommon.so.0` and `LIBRARY_PATH=/tmp/munin-native-libs`; no system files or repository dependencies were changed for that workaround.
+Pass `--script palette.json --at 1.2`. For live block activation, tap its `live-block-<source-byte-start>` key; identify keys in `--tree`. A wheel event with `key: "editor-scroll"` and negative `dy` scrolls the document. Optional software GPU override: `VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.json` (distribution dependent).
+
+This host has the XKB runtime but not its development linker symlink. Checks use a temporary `/tmp/munin-native-libs/libxkbcommon.so` symlink to the installed `libxkbcommon.so.0`, with `LIBRARY_PATH=/tmp/munin-native-libs`. No system files were changed.

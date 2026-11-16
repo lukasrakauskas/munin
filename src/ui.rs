@@ -492,9 +492,9 @@ fn empty(s: &State, k: &Kit) -> El {
         })
         .child(
             text(if cfg!(target_os = "macos") {
-                "⌘O  Open folder     ⌘P  Find a note"
+                "⌘O  Switch notes     ⌘K  Files & actions"
             } else {
-                "Ctrl+O  Open folder     Ctrl+P  Find a note"
+                "Ctrl+O  Switch notes     Ctrl+K  Files & actions"
             })
             .w_full()
             .wrap()

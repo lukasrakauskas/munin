@@ -138,6 +138,90 @@ fn obsidian_bold_italic_shortcuts_edit_source_not_sidebar() {
     assert_eq!(rt.state.edit.text, "word");
 }
 #[test]
+fn palette_query_redo_never_redoes_document_edits() {
+    let (_dir, mut rt) = setup();
+    rt.update(|s, _| {
+        s.edit.insert("X");
+        s.edit.undo();
+    });
+    rt.frame(0.0);
+    chord(&mut rt, 'k', false);
+    type_text(&mut rt, "query");
+    chord(&mut rt, 'y', false);
+    assert_eq!(rt.state.edit.text, "word");
+}
+#[test]
+fn palette_mouse_choice_empty_results_and_narrow_bounds() {
+    let (_dir, mut rt) = setup();
+    rt.set_viewport((480.0, 360.0), 1.0);
+    rt.frame(0.0);
+    rt.frame(0.1);
+    let close = rt
+        .elements()
+        .into_iter()
+        .find(|e| e.key.as_deref() == Some("close-note"))
+        .unwrap();
+    assert!(
+        close.rect[0] + close.rect[2] <= 480.0,
+        "narrow header actions overflow: {:?}",
+        close.rect
+    );
+    chord(&mut rt, 'o', false);
+    type_text(&mut rt, "no-such-note-xyz");
+    key(&mut rt, rune::Key::Enter);
+    assert!(rt.state.launcher.open);
+    assert_eq!(
+        rt.state.current.as_deref(),
+        Some(std::path::Path::new("note.md"))
+    );
+    let panel = rt
+        .elements()
+        .into_iter()
+        .find(|e| e.key.as_deref() == Some("command-palette-dialog"))
+        .unwrap();
+    assert!(
+        panel.rect[0] >= 0.0
+            && panel.rect[1] >= 0.0
+            && panel.rect[0] + panel.rect[2] <= 480.0
+            && panel.rect[1] + panel.rect[3] <= 360.0,
+        "palette overflows: {:?}",
+        panel.rect
+    );
+    key(&mut rt, rune::Key::Escape);
+    chord(&mut rt, 'o', false);
+    type_text(&mut rt, "prjr");
+    let (x, y) = rt.find("palette-option-0").unwrap();
+    rt.pointer_down(x, y);
+    rt.pointer_up(x, y);
+    rt.frame(0.0);
+    rt.frame(0.1);
+    assert_eq!(rt.state.edit.text, "Journal");
+}
+#[test]
+fn palette_caches_files_until_reopened_and_disabled_actions_do_nothing() {
+    let (dir, mut rt) = setup();
+    chord(&mut rt, 'o', false);
+    std::fs::write(dir.path().join("newly-created.md"), "new").unwrap();
+    type_text(&mut rt, "newly");
+    assert!(crate::launcher::results(&rt.state).is_empty());
+    key(&mut rt, rune::Key::Escape);
+    chord(&mut rt, 'o', false);
+    type_text(&mut rt, "newly");
+    assert_eq!(crate::launcher::results(&rt.state).len(), 1);
+    key(&mut rt, rune::Key::Escape);
+    rt.update(|s, _| {
+        s.current = None;
+        s.workspace = None;
+        s.recents.clear();
+    });
+    rt.frame(0.0);
+    chord(&mut rt, 'p', false);
+    type_text(&mut rt, "bold");
+    key(&mut rt, rune::Key::Enter);
+    assert!(rt.state.launcher.open);
+    assert_eq!(rt.state.edit.text, "word");
+}
+#[test]
 fn note_search_selects_match_and_delete_line_uses_obsidian_binding() {
     let (_dir, mut rt) = setup();
     rt.update(|s, _| {

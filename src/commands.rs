@@ -153,7 +153,7 @@ pub fn shortcut(s: &mut State, ev: &KeyEvent, tx: &mut Tx) -> bool {
         launcher::open(s, Scope::All);
         return true;
     }
-    if !cfg!(target_os = "macos") && hit("mod+y") {
+    if !s.launcher.open && !cfg!(target_os = "macos") && hit("mod+y") {
         dispatch(s, Action::Redo, tx);
         return true;
     }

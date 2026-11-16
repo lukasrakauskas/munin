@@ -290,6 +290,15 @@ impl State {
                 return Err(e);
             }
         }
+        for recent in &mut self.recents {
+            if let Ok(suffix) = recent.strip_prefix(entry) {
+                *recent = if suffix.as_os_str().is_empty() {
+                    relative.clone()
+                } else {
+                    relative.join(suffix)
+                };
+            }
+        }
         if let Some(suffix) = affected {
             self.current = Some(if suffix.as_os_str().is_empty() {
                 relative
@@ -325,6 +334,11 @@ impl State {
         if let Err(e) = std::fs::remove_file(root.join(&current)) {
             let _ = std::fs::remove_file(root.join(&rel));
             return Err(e);
+        }
+        for recent in &mut self.recents {
+            if *recent == current {
+                *recent = rel.clone();
+            }
         }
         self.current = Some(rel);
         self.refresh()

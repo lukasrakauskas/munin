@@ -348,6 +348,8 @@ pub fn mount(s: &State, k: &Kit, base: El) -> El {
             text(
                 if s.launcher.scope == Scope::Find && s.launcher.query.text.is_empty() {
                     "Type to find text in this note"
+                } else if s.launcher.scope == Scope::Find {
+                    "No matches in this note"
                 } else {
                     "No matching files or actions"
                 },

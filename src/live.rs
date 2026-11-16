@@ -13,6 +13,7 @@ pub struct LiveEditor {
     pub range: Option<Range<usize>>,
     pub edit: TextEdit,
     base: String,
+    trailing: String,
 }
 
 pub fn blocks(source: &str) -> Vec<Range<usize>> {
@@ -50,14 +51,19 @@ pub fn activate(s: &mut State, range: Range<usize>, caret: usize) {
     let Some(source) = s.edit.text.get(range.clone()) else {
         return;
     };
-    let mut edit = TextEdit::new(source);
-    edit.set_caret(caret.min(source.len()));
+    let body = source.trim_end_matches(['\r', '\n']);
+    let trailing = source[body.len()..].to_owned();
+    let mut edit = TextEdit::new(body);
+    edit.set_caret(caret.min(body.len()));
     edit.focused = true;
+    let base = source.to_owned();
+    s.edit.set_caret(range.start + edit.focus);
     s.edit.focused = false;
     s.live = LiveEditor {
         full: false,
         range: Some(range),
-        base: source.to_owned(),
+        base,
+        trailing,
         edit,
     };
 }
@@ -71,7 +77,15 @@ pub fn at(s: &mut State, byte: usize) {
         .unwrap()
         .clone();
     let offset = byte.saturating_sub(range.start);
-    activate(s, range, offset);
+    let source = &s.edit.text[range.clone()];
+    let trimmed = source.trim_end_matches(['\r', '\n']).len();
+    if offset > trimmed
+        && (source[..offset].ends_with("\n\n") || source[..offset].ends_with("\r\n\r\n"))
+    {
+        activate(s, byte..byte, 0);
+    } else {
+        activate(s, range, offset);
+    }
 }
 pub fn focus(s: &mut State) {
     if s.current.is_none() {
@@ -89,6 +103,7 @@ pub fn pause(s: &mut State) {
     s.live.edit.focused = false;
 }
 pub fn blur(s: &mut State) {
+    sync_selection(s);
     s.live = LiveEditor::default();
     s.edit.focused = false;
 }
@@ -112,7 +127,7 @@ pub fn commit(s: &mut State, tx: &mut Tx) {
             Some("The live edit no longer matches this note; your block text was retained.".into());
         return;
     }
-    let replacement = s.live.edit.text.clone();
+    let replacement = format!("{}{}", s.live.edit.text, s.live.trailing);
     if replacement == s.live.base {
         return;
     }
@@ -186,6 +201,24 @@ fn input_key(s: &mut State, ev: &KeyEvent, tx: &mut Tx) -> bool {
         blur(s);
         return true;
     }
+    let document_nav = if cfg!(target_os = "macos") {
+        ev.mods.cmd && matches!(ev.key, Key::Up | Key::Down)
+    } else {
+        ev.mods.ctrl && matches!(ev.key, Key::Home | Key::End)
+    };
+    if document_nav {
+        sync_selection(s);
+        let target = if matches!(ev.key, Key::Home | Key::Up) {
+            0
+        } else {
+            s.edit.text.len()
+        };
+        let anchor = if ev.mods.shift { s.edit.anchor } else { target };
+        s.edit.set_selection(anchor, target);
+        restore_selection(s);
+        tx.scroll_into_view("input");
+        return true;
+    }
     if crate::key(s, ev, tx) {
         return true;
     }
@@ -211,12 +244,12 @@ fn input_key(s: &mut State, ev: &KeyEvent, tx: &mut Tx) -> bool {
     }
     if a == b
         && ((ev.key == Key::Backspace && a == 0 && range.start > 0)
-            || (ev.key == Key::Delete && b == len && range.end < s.edit.text.len()))
+            || (ev.key == Key::Delete && b == len && range.start + b < s.edit.text.len()))
     {
         s.edit.set_caret(if ev.key == Key::Backspace {
             range.start
         } else {
-            range.end
+            range.start + b
         });
         s.edit.key(ev, None);
         at(s, s.edit.focus);
@@ -235,6 +268,9 @@ fn input_key(s: &mut State, ev: &KeyEvent, tx: &mut Tx) -> bool {
             None,
         );
         commit(s, tx);
+        if s.live.edit.text[..s.live.edit.focus].ends_with("\n\n") {
+            at(s, s.edit.focus);
+        }
         return true;
     }
     false
@@ -277,6 +313,12 @@ pub fn view(s: &State, k: &Kit, _: &mut Cx<State>) -> El {
     for range in ranges {
         let source = &s.edit.text[range.clone()];
         let active = s.live.range.as_ref() == Some(&range);
+        if !active
+            && source.trim().is_empty()
+            && (s.live.range.is_some() || !s.edit.text.trim().is_empty())
+        {
+            continue;
+        }
         let mut unit = col()
             .key(format!("live-block-{}", range.start))
             .w_full()
@@ -294,8 +336,17 @@ pub fn view(s: &State, k: &Kit, _: &mut Cx<State>) -> El {
                     .caret(k.c.text_accent, k.selection())
                     .wrap_anywhere()
                     .placeholder("Start writing…", k.c.text_muted)
-                    .decorations(crate::markdown::source_spans(source, k))
-                    .on_edit(|s: &mut State| &mut s.live.edit)
+                    .decorations(crate::markdown::source_spans(&s.live.edit.text, k))
+                    .on_edit(|s: &mut State| {
+                        // Rune reads the binding again after input, before on_change. Only
+                        // the pre-edit read should update the canonical undo snapshot's caret.
+                        if s.live.base.strip_suffix(&s.live.trailing)
+                            == Some(s.live.edit.text.as_str())
+                        {
+                            sync_selection(s);
+                        }
+                        &mut s.live.edit
+                    })
                     .on_input_key(input_key)
                     .on_input_change(commit),
             );

@@ -22,21 +22,21 @@
 ### Task 1: Live preview editor
 **Files:** new `src/live.rs`; State/main/ui/Markdown and tests.
 **Interfaces:** ActiveBlock { range, edit }; block partitions; activate, commit, blur, history; live view consumes canonical State.edit.
-- [ ] Add failing block-partition and Runtime tests for rendering and in-place editing with unchanged surrounding bytes.
-- [ ] Implement byte-range block editing, canonical history, local IME projection, boundary navigation/deletion, full-source selection fallback and remove split-mode controls/state.
-- [ ] Adapt old mode-specific tests to the new contract without dropping persistence/clipboard/layout coverage; run full `cargo test` and commit.
+- [x] Add failing block-partition and Runtime tests for rendering and in-place editing with unchanged surrounding bytes.
+- [x] Implement byte-range block editing, canonical history, local IME projection, boundary navigation/deletion, full-source selection fallback and remove split-mode controls/state.
+- [x] Adapt old mode-specific tests to the new contract without dropping persistence/clipboard/layout coverage; run full `cargo test` and commit.
 
 ### Task 2: Commands and palette
 **Files:** new `src/commands.rs`, `src/launcher.rs`; State/main/ui/tests.
 **Interfaces:** shared command registry/dispatch; launcher state with cached file snapshot, query, active result and scope; file/action results.
-- [ ] Add failing tests for Mod+K/O/P, fuzzy ranking, arrows/Enter/Escape, focus return, disabled actions, formatting, current-note search, line deletion and conflict-safe opens.
-- [ ] Build responsive RuneKit dialog/search/listbox, recents, file/action scopes, keyboard/mouse navigation and safe dispatch. Route shortcuts and sidebar search to it; show actual shortcut hints.
-- [ ] Run full tests, formatting, strict Clippy and build. Commit.
+- [x] Add failing tests for Mod+K/O/P, fuzzy ranking, arrows/Enter/Escape, focus return, disabled actions, formatting, current-note search, line deletion and conflict-safe opens.
+- [x] Build responsive RuneKit dialog/search/listbox, recents, file/action scopes, keyboard/mouse navigation and safe dispatch. Route shortcuts and sidebar search to it; show actual shortcut hints.
+- [x] Run full tests, formatting, strict Clippy and build. Commit.
 
 ### Task 3: Visual review and handoff
 **Files:** README, verification docs, screenshots and any evidenced fixes.
-- [ ] Inspect actual live paragraph/table/Mermaid editing and palette light/dark/narrow captures, including keyboard and file/action navigation.
-- [ ] Self-review all focus classes, fix evidenced issues with regression tests. Update docs with actual behavior and shortcut differences.
-- [ ] Run fmt/test/clippy/build/diff checks; expected all pass. Commit.
+- [x] Inspect actual live paragraph/table/Mermaid editing and palette light/dark/narrow captures, including keyboard and file/action navigation.
+- [x] Self-review all focus classes, fix evidenced issues with regression tests. Update docs with actual behavior and shortcut differences.
+- [x] Run fmt/test/clippy/build/diff checks; expected all pass. Commit.
 
 Final remote handoff: push once and update PR #2 only after all local checks and commits.

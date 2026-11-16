@@ -1,56 +1,66 @@
 # Munin
 
-Munin is a local Markdown editor built with Rust, Rune, and RuneKit. Notes are plain `.md` files in a folder you choose. Munin does not require an account, server, or network connection to edit notes.
+A local Markdown workspace built with Rust, Rune and RuneKit. Your notes stay plain `.md` files—no account, server or cloud required.
 
-## A quieter writing space
+## One document, live preview
 
-A full-width, full-height editor with a continuous white or charcoal surface, violet accents, a compact file explorer, and a word count / save-status bar. Use the header's sidebar button (or Ctrl/Cmd+B) for distraction-free writing. New note and folder actions live beside **Notes**; rename, delete, and close are in the note header. Escape or Cancel dismisses a dialog and returns focus to your note.
+Headings, emphasis, lists, quotes, code, tables and Mermaid render directly in the editor. Click a block to reveal and edit its Markdown **in place**; the surrounding document stays rendered. Move to another block or press Escape to finish editing. There is no separate Write/Read pane or toolbar toggle.
 
-![Rendered Markdown with a table and Mermaid diagram](docs/images/reading-light.png)
+![Live Markdown editing](docs/images/live-edit.png)
 
-[Dark appearance](docs/images/workspace-dark.png) · [Sidebar hidden](docs/images/focus.png) · [Narrow window](docs/images/workspace-narrow.png) · [Long-note scrolling](docs/images/long-note-scrolled.png) · [Welcome screen](docs/images/welcome.png)
+Edits patch the exact source bytes, preserving surrounding whitespace, CRLF and Unicode. Undo works across blocks. Blank-line entry continues into a new live paragraph; boundary arrows move between blocks. Ctrl/Cmd+A exposes a full-document source selection surface for native copy, cut, paste and cross-block selection; Escape returns to live preview.
 
-### Markdown, without losing the source
+This is native **block-level** live preview, not a complete clone of Obsidian/CodeMirror. Active blocks expose their Markdown syntax; tables and diagrams expose their source when edited. Reading arbitrary cross-block mouse selections is not a rich-text editing feature—use the full-document selection surface for those operations.
 
-Write mode styles headings, **bold**, *italic*, links and inline code while keeping the exact Markdown syntax editable. Use **Read** / **Write** in the header or **Ctrl/Cmd+E** for a fully rendered Reading view: headings, emphasis, lists, quotes, fenced code, tables and native Mermaid diagrams. Reading renders unsaved edits too; switching modes never reserializes your note. This is a source editor plus Reading view, not a hidden-marker live-preview editor.
+Mermaid renders locally without JavaScript, a browser or network service. Unsupported diagram syntax stays readable as code. Remote images are not downloaded automatically. Task checkboxes are rendered read-only; use the palette's **Toggle task checkbox** action or edit their Markdown.
 
-Mermaid blocks render locally—no browser, JavaScript, or network service. Unsupported diagram syntax falls back to its source. Wide tables/code can scroll horizontally; diagrams adapt to the available pane width. Remote images are not downloaded automatically. Reading-view task checkboxes are read-only; edit their Markdown in Write mode.
+[Dark live preview](docs/images/workspace-dark.png) · [Table editing](docs/images/live-table-edit.png) · [Narrow layout](docs/images/workspace-narrow.png) · [Sample note](docs/examples/rendered-note.md)
 
-Right-click the sidebar background for workspace actions. Right-click any note or folder to open/expand, create notes or folders in that location, rename, confirm deletion, or copy its relative path. Right-clicking another note does not switch away from your buffer. Folder deletion is **empty-only**, including files hidden by the Markdown-only tree.
+## Jump between files and actions
 
-The macOS sidebar reserves a draggable strip for overlaid traffic lights; hiding the sidebar shifts header controls clear of them, and fullscreen reclaims the space.
+**Ctrl/Cmd+K** opens the combined launcher. Search by name or fuzzy initials, use ↑/↓ and Enter, or click a result. The **All**, **Files** and **Actions** tabs filter the list; prefix a query with `>` for actions or `/` for files. Shortcuts appear beside commands. Escape or an outside click dismisses the palette and returns editor focus.
 
-[Dark Reading view](docs/images/reading-dark.png) · [Sidebar context menu](docs/images/sidebar-context.png) · [Narrow Reading view](docs/images/reading-narrow.png)
+![Command palette](docs/images/command-palette-dark.png)
 
-## Run
+**Ctrl/Cmd+O** is a file-only quick switcher with recent notes first. **Ctrl/Cmd+P** opens actions. **Ctrl/Cmd+F** searches the current unsaved note and jumps to the selected match. The palette includes formatting, headings, links, task checkboxes, note/folder creation, rename/delete, workspace selection, appearance, refresh and undo/redo. Actions unavailable in the current workspace are disabled.
 
-Install a recent Rust toolchain, then run:
+[File switcher](docs/images/file-switcher.png) · [Light palette](docs/images/command-palette-light.png)
+
+## Shortcuts
+
+`Ctrl` on Windows/Linux; `Cmd` on macOS. Supported bindings follow Obsidian's command palette, quick switcher and editing conventions. **K is deliberately overridden for the combined launcher requested for Munin**, rather than Obsidian's insert-link shortcut; insert links through the palette.
+
+| Shortcut | Action |
+| --- | --- |
+| Ctrl/Cmd+K | Files and actions |
+| Ctrl/Cmd+P | Command palette |
+| Ctrl/Cmd+O | Quick switcher |
+| Ctrl/Cmd+F | Find in note |
+| Ctrl/Cmd+N | New note |
+| Ctrl/Cmd+S | Save |
+| Ctrl/Cmd+W | Close note |
+| Ctrl/Cmd+B / I | Toggle bold / italic |
+| Ctrl/Cmd+E | Edit / finish the current block in place |
+| Ctrl/Cmd+Shift+K | Delete current line |
+| Ctrl/Cmd+Backslash | Toggle left sidebar |
+| Ctrl/Cmd+Z | Undo |
+| Ctrl/Cmd+Shift+Z | Redo (Ctrl+Y also works on Windows/Linux) |
+
+Native clipboard and character/word/line selection shortcuts remain available. Ctrl+Home/End on Windows/Linux and Cmd+Up/Down on macOS navigate the document, not just the active block. Open the workspace folder with the sidebar folder button or the **Open workspace folder** palette action.
+
+## Workspace and safety
+
+Right-click the sidebar or its entries for file/folder/workspace actions. Context actions target the clicked entry, not whichever note is active. Folder deletion is confirmation-gated and **empty-only**, including hidden non-Markdown files. The sidebar reserves native traffic-light space on macOS; hiding it moves header controls clear of the buttons, and fullscreen reclaims the space.
+
+Changes save after a pause and before switching files. Disk conflicts preserve your buffer instead of knowingly overwriting external edits. Failed saves on close attempt a local recovery copy. Workspace, current note and appearance are remembered; launcher recents are session-local. Rename actions update recent paths too.
+
+## Run and develop
 
 ```sh
 cargo run --release
 ```
 
-The first build downloads the pinned Rune revision and Rust dependencies. Linux folder selection uses the XDG desktop portal and a compatible file chooser. The application runs offline after it is built.
-
-Open a folder to create or edit notes. The sidebar shows folders and Markdown files; the quick-open dialog searches their paths. New note and folder names can include a relative folder path, such as `projects/ideas`.
-
-## Shortcuts
-
-| Shortcut | Action |
-| --- | --- |
-| Ctrl/Cmd+O | Open workspace |
-| Ctrl/Cmd+N | New note |
-| Ctrl/Cmd+S | Save now |
-| Ctrl/Cmd+B | Toggle sidebar |
-| Ctrl/Cmd+P | Quick open |
-| Ctrl/Cmd+E | Toggle Write / Read |
-| Ctrl/Cmd+W | Close note |
-
-The theme button cycles through system, light, and dark. Munin remembers the last workspace, note, and theme in the user's configuration directory.
-
-Changes save after a short pause and before changing notes. If the file has changed on disk, Munin keeps the edited buffer and reports a conflict rather than knowingly overwriting the external version. Copy your edits elsewhere or restore the original file contents before retrying save. If saving fails when the window closes, Munin attempts to keep a local recovery copy and restores it on the next launch.
-
-## Development
+Linux folder selection uses the XDG desktop portal. Build dependencies include `libxkbcommon-dev` on Debian/Ubuntu.
 
 ```sh
 cargo fmt --check
@@ -59,6 +69,4 @@ cargo clippy --all-targets -- -D warnings
 cargo build
 ```
 
-Linux builds need the XKB development library (`libxkbcommon-dev` on Debian/Ubuntu). Headless UI checks and screenshot instructions are in [UI verification](docs/ui-verification.md).
-
-Rune is a pre-release framework pinned to a Git revision. Linux is the primary development and test platform; Windows and macOS builds and native behavior require verification on those platforms.
+See [UI verification](docs/ui-verification.md) for headless checks, screenshots and known platform limitations. Rune is pre-release and pinned to a Git revision; Linux is the development platform. Native macOS/Windows behavior requires verification on those systems.

@@ -15,6 +15,10 @@ fn renaming_folder_containing_active_note_updates_path_and_saves_edits() {
         "new"
     );
     assert!(!dir.path().join("folder").exists());
+    assert_eq!(
+        s.recents.first().map(|p| p.as_path()),
+        Some(Path::new("renamed/note.md"))
+    );
 }
 
 #[test]
