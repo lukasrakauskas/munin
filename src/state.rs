@@ -29,6 +29,7 @@ pub struct State {
     pub error: Option<String>,
     pub sidebar: bool,
     pub reading: bool,
+    pub reading_width: f32,
     pub theme: u8,
     pub dialog: Option<&'static str>,
     pub dialog_target: Option<PathBuf>,
@@ -153,6 +154,7 @@ impl State {
             error: None,
             sidebar: true,
             reading: false,
+            reading_width: 640.0,
             theme: 0,
             dialog: None,
             dialog_target: None,
@@ -203,7 +205,9 @@ impl State {
             .create_new(true)
             .open(path)?;
         self.refresh()?;
-        self.open_file(rel)
+        self.open_file(rel)?;
+        self.reading = false;
+        Ok(())
     }
     pub fn create_folder(&mut self, name: &str) -> io::Result<()> {
         let rel = self.destination(name, false)?;

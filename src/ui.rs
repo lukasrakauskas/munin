@@ -52,7 +52,7 @@ fn label(n: &FileNode<()>) -> &str {
     &n.name
 }
 
-fn sidebar(s: &State, k: &Kit) -> El {
+fn sidebar(s: &State, k: &Kit, controls_height: f32) -> El {
     let workspace = s
         .workspace
         .as_deref()
@@ -67,6 +67,12 @@ fn sidebar(s: &State, k: &Kit) -> El {
         .min_h(0.0)
         .fill(k.c.layer_01)
         .border_sides([0.0, 1.0, 0.0, 0.0], k.c.border_muted)
+        .child(
+            el().key("sidebar-titlebar")
+                .w_full()
+                .h(controls_height)
+                .window_drag(),
+        )
         .child(
             row()
                 .h(72.0)
@@ -245,7 +251,7 @@ fn sidebar(s: &State, k: &Kit) -> El {
     )
 }
 
-fn header(s: &State, k: &Kit) -> El {
+fn header(s: &State, k: &Kit, leading: f32, trailing: f32) -> El {
     let title = s
         .current
         .as_ref()
@@ -253,9 +259,15 @@ fn header(s: &State, k: &Kit) -> El {
         .unwrap_or_else(|| "Your writing space".into());
     let mut header = row()
         .key("note-header")
+        .window_drag()
         .w_full()
         .h(56.0)
-        .px(GUTTER)
+        .pl(if !s.sidebar && leading > 0.0 {
+            leading + 12.0
+        } else {
+            GUTTER
+        })
+        .pr(GUTTER + trailing)
         .gap(12.0)
         .center_y()
         .border_sides([0.0, 0.0, 1.0, 0.0], k.c.border_muted)
@@ -515,7 +527,7 @@ fn dialog(s: &State, mode: &str, k: &Kit) -> El {
                 "Delete the current note? This cannot be undone.".into()
             })
             .w_full()
-            .wrap()
+            .wrap_anywhere()
             .font(k.ty.ui)
             .color(k.c.text_muted),
         );
@@ -579,7 +591,7 @@ fn dialog(s: &State, mode: &str, k: &Kit) -> El {
             .gap(8.0)
             .child(
                 Button::new(if mode.starts_with("Delete ") {
-                    "Delete note"
+                    "Delete"
                 } else if mode == "Quick open" {
                     "Open note"
                 } else {
@@ -611,6 +623,13 @@ pub(super) fn view(s: &State, cx: &mut Cx<State>) -> El {
         _ => cx.system_dark(),
     };
     let k = kit(dark);
+    let chrome = cx.chrome_insets();
+    let leading = cx.titlebar_inset().max(chrome.leading);
+    let controls_height = if leading > 0.0 {
+        chrome.height.max(40.0)
+    } else {
+        0.0
+    };
     let mut pane = col()
         .key("writing-surface")
         .grow(1.0)
@@ -618,7 +637,7 @@ pub(super) fn view(s: &State, cx: &mut Cx<State>) -> El {
         .min_h(0.0)
         .h_full()
         .fill(k.c.page)
-        .child(header(s, &k));
+        .child(header(s, &k, leading, chrome.trailing));
     if let Some(error) = &s.error {
         pane = pane.child(
             col()
@@ -658,7 +677,15 @@ pub(super) fn view(s: &State, cx: &mut Cx<State>) -> El {
                         .w_full()
                         .px(GUTTER)
                         .py(24.0)
-                        .child(super::markdown::reading(&s.edit.text, &k)),
+                        .on_layout_tx(|s: &mut State, rect, tx| {
+                            let width = (rect[2] - GUTTER * 2.0).max(1.0);
+                            if (s.reading_width - width).abs() > 0.5 {
+                                s.reading_width = width;
+                            } else {
+                                tx.live_only();
+                            }
+                        })
+                        .child(super::markdown::reading(&s.edit.text, &k, s.reading_width)),
                 )
         } else {
             editor(s, &k)
@@ -669,7 +696,7 @@ pub(super) fn view(s: &State, cx: &mut Cx<State>) -> El {
     };
     let mut body = row().w_full().h_full().fill(k.c.page);
     if s.sidebar {
-        body = body.child(sidebar(s, &k));
+        body = body.child(sidebar(s, &k, controls_height));
     }
     super::context::menu(s, &k, body.on_key(key).child(pane))
 }

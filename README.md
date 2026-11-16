@@ -6,9 +6,21 @@ Munin is a local Markdown editor built with Rust, Rune, and RuneKit. Notes are p
 
 A full-width, full-height editor with a continuous white or charcoal surface, violet accents, a compact file explorer, and a word count / save-status bar. Use the header's sidebar button (or Ctrl/Cmd+B) for distraction-free writing. New note and folder actions live beside **Notes**; rename, delete, and close are in the note header. Escape or Cancel dismisses a dialog and returns focus to your note.
 
-![Munin's light writing workspace](docs/images/workspace-light.png)
+![Rendered Markdown with a table and Mermaid diagram](docs/images/reading-light.png)
 
 [Dark appearance](docs/images/workspace-dark.png) · [Sidebar hidden](docs/images/focus.png) · [Narrow window](docs/images/workspace-narrow.png) · [Long-note scrolling](docs/images/long-note-scrolled.png) · [Welcome screen](docs/images/welcome.png)
+
+### Markdown, without losing the source
+
+Write mode styles headings, **bold**, *italic*, links and inline code while keeping the exact Markdown syntax editable. Use **Read** / **Write** in the header or **Ctrl/Cmd+E** for a fully rendered Reading view: headings, emphasis, lists, quotes, fenced code, tables and native Mermaid diagrams. Reading renders unsaved edits too; switching modes never reserializes your note. This is a source editor plus Reading view, not a hidden-marker live-preview editor.
+
+Mermaid blocks render locally—no browser, JavaScript, or network service. Unsupported diagram syntax falls back to its source. Wide tables/code can scroll horizontally; diagrams adapt to the available pane width. Remote images are not downloaded automatically. Reading-view task checkboxes are read-only; edit their Markdown in Write mode.
+
+Right-click the sidebar background for workspace actions. Right-click any note or folder to open/expand, create notes or folders in that location, rename, confirm deletion, or copy its relative path. Right-clicking another note does not switch away from your buffer. Folder deletion is **empty-only**, including files hidden by the Markdown-only tree.
+
+The macOS sidebar reserves a draggable strip for overlaid traffic lights; hiding the sidebar shifts header controls clear of them, and fullscreen reclaims the space.
+
+[Dark Reading view](docs/images/reading-dark.png) · [Sidebar context menu](docs/images/sidebar-context.png) · [Narrow Reading view](docs/images/reading-narrow.png)
 
 ## Run
 
@@ -31,6 +43,7 @@ Open a folder to create or edit notes. The sidebar shows folders and Markdown fi
 | Ctrl/Cmd+S | Save now |
 | Ctrl/Cmd+B | Toggle sidebar |
 | Ctrl/Cmd+P | Quick open |
+| Ctrl/Cmd+E | Toggle Write / Read |
 | Ctrl/Cmd+W | Close note |
 
 The theme button cycles through system, light, and dark. Munin remembers the last workspace, note, and theme in the user's configuration directory.

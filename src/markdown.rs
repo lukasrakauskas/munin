@@ -2,25 +2,28 @@
 use rune::{El, Span, TextStyle};
 use rune_kit::{Kit, Markdown, MarkdownStyle};
 
-pub fn reading(source: &str, k: &Kit) -> El {
+pub fn reading(source: &str, k: &Kit, width: f32) -> El {
     let style = MarkdownStyle::from_kit(k)
         .body_font(TextStyle::new(15.0, 400.0).lh(25.0))
         .heading_font(1, TextStyle::new(30.0, 650.0).lh(38.0))
         .heading_font(2, TextStyle::new(24.0, 600.0).lh(32.0))
         .heading_font(3, TextStyle::new(20.0, 600.0).lh(28.0))
-        .strong_weight(700.0);
+        .strong_weight(700.0)
+        .text_width(width.max(1.0))
+        .table_full_width(true)
+        .diagram_max_width(width.max(1.0))
+        .diagram(k.c.layer_01, k.c.border_focus, k.c.text_accent);
     Markdown::new(source)
         .style(style)
         .scroll_wide(true)
         .tasks_read_only()
         .on_link_tx(|s: &mut crate::state::State, url, tx| {
-            if url.starts_with("https://")
+            if (url.starts_with("https://")
                 || url.starts_with("http://")
-                || url.starts_with("mailto:")
+                || url.starts_with("mailto:"))
+                && let Err(e) = tx.open_url(url)
             {
-                if let Err(e) = tx.open_url(url) {
-                    s.error = Some(e.to_string());
-                }
+                s.error = Some(e.to_string());
             }
         })
         .build(k)

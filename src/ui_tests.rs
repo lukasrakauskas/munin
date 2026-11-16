@@ -174,6 +174,159 @@ fn background_context_has_workspace_actions_and_escape_dismisses() {
     assert!(!rt.elements().iter().any(|e| e.role == "menu" && !e.exiting));
 }
 
+fn chrome_insets(leading: f32, trailing: f32, height: f32) -> rune::ChromeInsets {
+    let mut insets = rune::ChromeInsets::default();
+    insets.leading = leading;
+    insets.trailing = trailing;
+    insets.height = height;
+    insets
+}
+
+#[test]
+fn native_overlay_controls_clear_sidebar_and_hidden_sidebar_header() {
+    let (_dir, mut rt) = note_runtime("note", (1000.0, 700.0), false);
+    rt.set_titlebar_inset(78.0);
+    rt.set_chrome_insets(chrome_insets(78.0, 0.0, 40.0));
+    rt.frame(0.0);
+    rt.frame(1.0);
+    let brand = rt
+        .elements()
+        .into_iter()
+        .find(|e| e.text.as_deref() == Some("Munin"))
+        .unwrap();
+    assert!(
+        brand.rect[1] >= 40.0,
+        "brand overlaps traffic lights: {:?}",
+        brand.rect
+    );
+    click(&mut rt, "toggle-sidebar");
+    assert!(element(&rt, "toggle-sidebar").rect[0] >= 78.0);
+    rt.set_titlebar_inset(0.0);
+    rt.set_chrome_insets(rune::ChromeInsets::default());
+    rt.frame(0.0);
+    rt.frame(1.0);
+    assert!(
+        element(&rt, "toggle-sidebar").rect[0] < 78.0,
+        "fullscreen should reclaim titlebar space"
+    );
+}
+
+#[test]
+fn native_overlay_strip_disappears_in_fullscreen_and_clears_trailing_controls() {
+    let (_dir, mut rt) = note_runtime("note", (1000.0, 700.0), true);
+    rt.set_titlebar_inset(78.0);
+    rt.frame(0.0);
+    rt.frame(1.0);
+    let y = rt
+        .elements()
+        .into_iter()
+        .find(|e| e.text.as_deref() == Some("Munin"))
+        .unwrap()
+        .rect[1];
+    assert!(y >= 40.0);
+    rt.set_titlebar_inset(0.0);
+    rt.set_chrome_insets(chrome_insets(0.0, 140.0, 40.0));
+    rt.frame(0.0);
+    rt.frame(1.0);
+    let brand = rt
+        .elements()
+        .into_iter()
+        .find(|e| e.text.as_deref() == Some("Munin"))
+        .unwrap();
+    assert!(brand.rect[1] < 40.0);
+    let close = element(&rt, "close-note").rect;
+    assert!(close[0] + close[2] <= 860.0);
+}
+
+#[test]
+fn reading_diagram_fits_a_narrow_pane_without_clipping_node_labels() {
+    let source = "```mermaid\nflowchart LR\n A[Notice an idea] --> B[Write it down]\n B --> C[Make it yours]\n```\n";
+    let (_dir, mut rt) = note_runtime(source, (640.0, 700.0), false);
+    click(&mut rt, "toggle-reading");
+    rt.frame(1.0);
+    for label in ["Notice an idea", "Make it yours"] {
+        let node = rt
+            .elements()
+            .into_iter()
+            .find(|e| e.text.as_deref() == Some(label))
+            .unwrap();
+        assert!(
+            node.visible[2] >= node.rect[2] - 1.0,
+            "diagram label clipped: {label}: {:?} / {:?}",
+            node.rect,
+            node.visible
+        );
+    }
+}
+
+#[test]
+fn new_note_from_reading_opens_a_focused_writing_surface() {
+    let (dir, mut rt) = note_runtime("keep", (1000.0, 700.0), false);
+    click(&mut rt, "toggle-reading");
+    click(&mut rt, "new-note");
+    rt.update(|s, _| s.input = TextEdit::new("fresh"));
+    rt.frame(0.0);
+    click(&mut rt, "confirm-dialog");
+    assert!(
+        rt.find("input").is_some(),
+        "new notes must open in Write mode"
+    );
+    rt.ime(rune::Ime::Commit("new text".into()));
+    rt.frame(0.0);
+    assert_eq!(rt.state.edit.text, "new text");
+    assert!(dir.path().join("fresh.md").exists());
+    assert_eq!(
+        std::fs::read_to_string(dir.path().join("note.md")).unwrap(),
+        "keep"
+    );
+}
+
+#[test]
+fn context_copy_and_outside_dismiss_do_not_switch_or_edit_the_note() {
+    let (_dir, mut rt) = note_runtime("note", (1000.0, 700.0), false);
+    let clipboard = rune::clipboard::memory();
+    rt.use_clipboard(&clipboard);
+    right_click(&mut rt, "note.md");
+    click_label(&mut rt, "Copy relative path");
+    assert_eq!(
+        clipboard.text().as_deref().map(String::as_str),
+        Some("note.md")
+    );
+    right_click(&mut rt, "note.md");
+    rt.pointer_down(900.0, 600.0);
+    rt.pointer_up(900.0, 600.0);
+    rt.frame(0.0);
+    rt.frame(1.0);
+    assert!(!rt.elements().iter().any(|e| e.role == "menu" && !e.exiting));
+    assert_eq!(rt.state.edit.text, "note");
+}
+
+#[test]
+fn reading_table_header_and_cells_fill_the_same_frame() {
+    let (_dir, mut rt) = note_runtime(
+        "| Name | Value |\n| --- | --- |\n| Note | Local |\n",
+        (1200.0, 800.0),
+        true,
+    );
+    click(&mut rt, "toggle-reading");
+    rt.frame(1.0);
+    let elements = rt.elements();
+    let table = elements.iter().find(|e| e.role == "table").unwrap();
+    let headers: Vec<_> = elements
+        .iter()
+        .filter(|e| e.role == "columnheader")
+        .collect();
+    let right = headers
+        .iter()
+        .map(|e| e.rect[0] + e.rect[2])
+        .fold(0.0, f32::max);
+    assert!(
+        right >= table.rect[0] + table.rect[2] - 4.0,
+        "table frame extends past its header cells: {right} vs {:?}",
+        table.rect
+    );
+}
+
 #[test]
 fn short_note_uses_full_pane_width_and_height() {
     for dark in [false, true] {
